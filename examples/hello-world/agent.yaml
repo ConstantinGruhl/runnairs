@@ -1,0 +1,26 @@
+name: hello-world
+display_name: Hello World
+description: |
+  Smallest possible agent: takes a greeting input, runs it through
+  llm.complete, returns the text. Used by Phase 4 to prove the run
+  lifecycle works end-to-end.
+runtime: python3.12
+entrypoint: main:run
+
+inputs:
+  greeting:
+    type: string
+    required: false
+
+permissions:
+  tools:
+    - llm.complete
+  secrets:
+    - name: OPENAI_API_KEY
+      scope: workspace
+
+limits:
+  timeout_seconds: 30
+  memory_mb: 256
+  max_tokens: 1000
+  max_cost_usd: 0.10

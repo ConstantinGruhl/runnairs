@@ -17,6 +17,7 @@ class LlmCompletion:
     model: str
     tokens_used: int
     cost_usd: float
+    backend: str  # "openai" | "stub"
 
     def __str__(self) -> str:
         return self.text
@@ -49,4 +50,5 @@ def complete(
         model=body["model"],
         tokens_used=int(body.get("tokens_used", 0)),
         cost_usd=float(body.get("cost_usd", 0.0)),
+        backend=body.get("backend", "unknown"),
     )

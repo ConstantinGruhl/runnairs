@@ -11,7 +11,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 1** — Auth + data model
 - [x] **Phase 2** — Secret store
 - [x] **Phase 3** — Agent SDK + tool gateway (LLM)
-- [ ] **Phase 4** — Execution backend (Docker)
+- [x] **Phase 4** — Execution backend (Docker)
 - [ ] **Phase 5** — Agent deploy + CLI
 - [ ] **Phase 6** — Catalog + run UI
 - [ ] **Phase 7** — Approvals
@@ -138,9 +138,32 @@ back to a deterministic stub backend (the demo runs without keys). With
 a key configured via the admin secrets UI, the gateway calls OpenAI for
 real and reports actual token usage and cost.
 
+## Run lifecycle (hello-world end-to-end)
+
+```bash
+./scripts/build-agent-runtime.sh   # base image with platform_sdk
+./scripts/build-hello-world.sh     # examples/hello-world image
+./scripts/seed.sh                  # tenant + users + hello-world Agent row
+
+# Trigger a run (any logged-in user):
+curl -X POST http://localhost:8000/runs \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"agent_slug":"hello-world","inputs":{"greeting":"Hi"}}'
+
+# Poll status:
+curl http://localhost:8000/runs/<run_id> -H "Authorization: Bearer $TOKEN"
+```
+
+Each run boots a fresh container with the platform's invariants in
+place: read-only root, tmpfs at `/tmp`, no privileged, all caps
+dropped, mem/cpu limits from the manifest, attached only to the
+internal `agent-egress` network so the tool gateway is the only peer
+the agent can reach. Verified: external HTTPS and DNS lookups from
+inside an agent container fail; `tool-gateway:8001/health` works.
+
 ## Known limitations (will resolve in later phases)
 
-- No real agent run lifecycle yet (Phase 4 — Docker execution backend).
 - User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired in this phase.
+- The agent CLI (`platform-cli deploy`) lands in Phase 5.

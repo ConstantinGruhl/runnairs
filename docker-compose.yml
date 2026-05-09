@@ -109,11 +109,33 @@ services:
         condition: service_healthy
       mock-crm:
         condition: service_healthy
+    networks:
+      default: {}
+      agent-egress: {}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  worker:
+    build:
+      context: ./services/control-plane
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+      PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
+      TOOL_GATEWAY_URL: http://tool-gateway:8001
+      AGENT_EGRESS_NETWORK: agent-platform_agent-egress
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      tool-gateway:
+        condition: service_healthy
 
   frontend:
     build:
@@ -125,6 +147,12 @@ services:
     depends_on:
       control-plane:
         condition: service_healthy
+
+networks:
+  default: {}
+  agent-egress:
+    name: agent-platform_agent-egress
+    internal: true
 
 volumes:
   postgres_data:
