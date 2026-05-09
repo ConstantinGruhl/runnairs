@@ -9,7 +9,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 
 - [x] **Phase 0** — Scaffold (compose stack, health checks)
 - [x] **Phase 1** — Auth + data model
-- [ ] **Phase 2** — Secret store
+- [x] **Phase 2** — Secret store
 - [ ] **Phase 3** — Agent SDK + tool gateway (LLM)
 - [ ] **Phase 4** — Execution backend (Docker)
 - [ ] **Phase 5** — Agent deploy + CLI
@@ -108,8 +108,24 @@ This creates one tenant ("Demo Workspace") and three users:
 
 The script is idempotent — safe to re-run.
 
+## Workspace secrets
+
+Workspace secrets are encrypted at rest with Fernet. The encryption key
+comes from `PLATFORM_SECRETS_KEY` in `.env`. If unset, a deterministic
+dev key is derived from `JWT_SECRET` (loud warning logged) — fine for
+local play, never for anything real.
+
+Generate a real key with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Admin UI at <http://localhost:3000/admin/secrets> after signing in as
+`admin@demo.local`.
+
 ## Known limitations (will resolve in later phases)
 
-- Login UI form is non-functional (Phase 6 wires it up).
 - No real agent execution yet (Phase 4).
 - `agent-runtime` image is a placeholder (Phase 4).
+- User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
