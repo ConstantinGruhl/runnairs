@@ -1,0 +1,20 @@
+[project]
+name = "platform_cli"
+version = "0.1.0"
+description = "Developer CLI for the Enterprise AI Agent Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.13",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+platform-cli = "platform_cli.main:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["platform_cli*"]

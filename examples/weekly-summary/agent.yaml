@@ -1,0 +1,29 @@
+name: weekly-summary
+display_name: Weekly Sales Summary
+description: |
+  Summarizes weekly pipeline activity for a region. The Phase 5 version
+  uses llm.complete only; Phase 8 wires in tools.postgres.query for the
+  pipeline data and ctx.request_approval + tools.email.send for delivery.
+runtime: python3.12
+entrypoint: main:run
+
+inputs:
+  region:
+    type: string
+    required: true
+  recipient_email:
+    type: string
+    required: false
+
+permissions:
+  tools:
+    - llm.complete
+  secrets:
+    - name: OPENAI_API_KEY
+      scope: workspace
+
+limits:
+  timeout_seconds: 60
+  memory_mb: 256
+  max_tokens: 5000
+  max_cost_usd: 0.50

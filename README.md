@@ -12,7 +12,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 2** — Secret store
 - [x] **Phase 3** — Agent SDK + tool gateway (LLM)
 - [x] **Phase 4** — Execution backend (Docker)
-- [ ] **Phase 5** — Agent deploy + CLI
+- [x] **Phase 5** — Agent deploy + CLI
 - [ ] **Phase 6** — Catalog + run UI
 - [ ] **Phase 7** — Approvals
 - [ ] **Phase 8** — Remaining tools + sample agents
@@ -161,9 +161,26 @@ internal `agent-egress` network so the tool gateway is the only peer
 the agent can reach. Verified: external HTTPS and DNS lookups from
 inside an agent container fail; `tool-gateway:8001/health` works.
 
+## Developer CLI
+
+```bash
+pip install -e packages/platform_cli
+platform-cli login --email dev@demo.local --api-url http://localhost:8000
+platform-cli init my-agent
+# edit my-agent/agent.yaml + my-agent/main.py
+platform-cli deploy ./my-agent
+```
+
+`deploy` zips the directory, uploads to `POST /dev/agents/deploy`, and the
+control plane validates the manifest, builds an image tagged
+`agent-<uuid>:v<n>` from `platform/agent-runtime` + the agent code, and
+creates a draft `AgentVersion` row. Admins approve it via
+`POST /admin/agents/<slug>/approve` (UI lands in Phase 6) before end
+users can run it.
+
 ## Known limitations (will resolve in later phases)
 
 - User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired in this phase.
-- The agent CLI (`platform-cli deploy`) lands in Phase 5.
+- Catalog UI for end users to browse/run approved agents lands in Phase 6.
