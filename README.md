@@ -10,7 +10,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 0** — Scaffold (compose stack, health checks)
 - [x] **Phase 1** — Auth + data model
 - [x] **Phase 2** — Secret store
-- [ ] **Phase 3** — Agent SDK + tool gateway (LLM)
+- [x] **Phase 3** — Agent SDK + tool gateway (LLM)
 - [ ] **Phase 4** — Execution backend (Docker)
 - [ ] **Phase 5** — Agent deploy + CLI
 - [ ] **Phase 6** — Catalog + run UI
@@ -124,8 +124,23 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 Admin UI at <http://localhost:3000/admin/secrets> after signing in as
 `admin@demo.local`.
 
+## Agent SDK + tool gateway
+
+The platform has a working `tools.llm.complete` end-to-end:
+
+```bash
+./scripts/build-agent-runtime.sh   # one-time, builds platform/agent-runtime:latest
+./scripts/test-phase3.sh           # mints a run token, calls the SDK, prints the audit row
+```
+
+Without `OPENAI_API_KEY` configured for the tenant, the gateway falls
+back to a deterministic stub backend (the demo runs without keys). With
+a key configured via the admin secrets UI, the gateway calls OpenAI for
+real and reports actual token usage and cost.
+
 ## Known limitations (will resolve in later phases)
 
-- No real agent execution yet (Phase 4).
-- `agent-runtime` image is a placeholder (Phase 4).
+- No real agent run lifecycle yet (Phase 4 — Docker execution backend).
 - User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
+- Anthropic + other LLM providers can be plugged into the gateway
+  alongside OpenAI; only OpenAI is wired in this phase.

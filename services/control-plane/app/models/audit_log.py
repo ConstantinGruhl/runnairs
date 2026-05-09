@@ -13,6 +13,14 @@ from app.models.base import Base, created_at_col, jsonb_col, uuid_pk
 
 
 class AuditLog(Base):
+    """Append-only audit trail of tool calls.
+
+    The run_id, agent_id, and user_id columns are intentionally NOT
+    foreign keys: audit rows must outlive the records they reference,
+    and synthetic runs (e.g. CLI-minted tokens for testing) write here
+    without a corresponding `run` row.
+    """
+
     __tablename__ = "audit_log"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -20,13 +28,13 @@ class AuditLog(Base):
         UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False, index=True
     )
     run_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("run.id", ondelete="SET NULL"), nullable=True, index=True
+        UUID(as_uuid=True), nullable=True, index=True
     )
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agent.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), nullable=True
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), nullable=True
     )
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     args_sanitized_json: Mapped[dict[str, Any] | None] = jsonb_col(nullable=True)

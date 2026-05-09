@@ -1,0 +1,16 @@
+[project]
+name = "platform_sdk"
+version = "0.1.0"
+description = "Agent SDK for the Enterprise AI Agent Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28",
+    "pydantic>=2.9",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["platform_sdk*"]

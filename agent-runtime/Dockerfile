@@ -1,6 +1,9 @@
 # Base image for all deployed agents.
-# Per-agent images are built FROM this image with the agent's code copied in.
-# Real implementation lands in Phase 4.
+# Build context is the repo root; per-agent images extend this image
+# with the agent's code copied in (Phase 5+).
+#
+# Build (from repo root):
+#   docker build -f agent-runtime/Dockerfile -t platform/agent-runtime:latest .
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -9,7 +12,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /agent
 
-# platform_sdk is mounted/copied in once it ships.
-COPY entrypoint.py /agent/entrypoint.py
+# Install platform_sdk so agents can `import platform_sdk` out of the box.
+COPY packages/platform_sdk /opt/platform_sdk
+RUN pip install --upgrade pip && pip install /opt/platform_sdk
+
+# Per-agent images COPY their code on top of this layer.
+COPY agent-runtime/entrypoint.py /agent/entrypoint.py
 
 ENTRYPOINT ["python", "/agent/entrypoint.py"]
