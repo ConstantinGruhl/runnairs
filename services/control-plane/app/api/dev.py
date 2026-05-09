@@ -45,6 +45,43 @@ def list_my_agents(actor: DevOrAdmin, db: DbSession) -> dict:
     return {"agents": agents}
 
 
+@router.get("/agents/{slug}")
+def get_agent(slug: str, actor: DevOrAdmin, db: DbSession) -> dict:
+    agent = db.execute(
+        select(Agent).where(Agent.tenant_id == actor.tenant_id, Agent.slug == slug)
+    ).scalar_one_or_none()
+    if agent is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "agent not found")
+    versions = (
+        db.execute(
+            select(AgentVersion)
+            .where(AgentVersion.agent_id == agent.id)
+            .order_by(AgentVersion.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "id": str(agent.id),
+        "slug": agent.slug,
+        "name": agent.name,
+        "description": agent.description,
+        "status": agent.status.value,
+        "current_version_id": str(agent.current_version_id) if agent.current_version_id else None,
+        "versions": [
+            {
+                "id": str(v.id),
+                "version": v.version,
+                "image_tag": v.image_tag,
+                "created_at": v.created_at.isoformat(),
+                "approved_at": v.approved_at.isoformat() if v.approved_at else None,
+                "is_current": agent.current_version_id == v.id,
+            }
+            for v in versions
+        ],
+    }
+
+
 @router.post("/agents/deploy", status_code=status.HTTP_201_CREATED)
 async def deploy_agent(
     actor: DevOrAdmin,

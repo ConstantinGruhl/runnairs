@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGuard } from "@/components/RoleGuard";
 
 const NAV = [
+  { label: "Agents", href: "/admin/agents" },
   { label: "Secrets", href: "/admin/secrets" },
 ];
 

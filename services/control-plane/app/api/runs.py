@@ -19,6 +19,8 @@ def _to_public(run: Run, agent: Agent | None = None) -> RunPublic:
         {
             "id": run.id,
             "agent_id": run.agent_id,
+            "agent_slug": agent.slug if agent else None,
+            "agent_name": agent.name if agent else None,
             "agent_version_id": run.agent_version_id,
             "triggering_user_id": run.triggering_user_id,
             "trigger": run.trigger.value,
@@ -30,6 +32,30 @@ def _to_public(run: Run, agent: Agent | None = None) -> RunPublic:
             "finished_at": run.finished_at,
         }
     )
+
+
+@router.get("", response_model=list[RunPublic])
+def list_runs(
+    actor: CurrentUser,
+    db: DbSession,
+    agent_slug: str | None = None,
+    limit: int = 50,
+) -> list[RunPublic]:
+    """List runs visible to the caller. End users see their own; admins see all."""
+    query = (
+        select(Run, Agent)
+        .join(Agent, Agent.id == Run.agent_id)
+        .where(Agent.tenant_id == actor.tenant_id)
+        .order_by(Run.id.desc())
+        .limit(min(max(limit, 1), 200))
+    )
+    if actor.role.value != "admin":
+        query = query.where(Run.triggering_user_id == actor.id)
+    if agent_slug:
+        query = query.where(Agent.slug == agent_slug)
+
+    rows = db.execute(query).all()
+    return [_to_public(run, agent) for run, agent in rows]
 
 
 @router.post("", response_model=RunPublic, status_code=status.HTTP_201_CREATED)
@@ -70,7 +96,7 @@ def start_run(payload: RunStartRequest, actor: CurrentUser, db: DbSession) -> Ru
     queue = RqJobQueue(settings.redis_url)
     queue.enqueue(run.id)
 
-    return _to_public(run)
+    return _to_public(run, agent)
 
 
 @router.get("/{run_id}", response_model=RunPublic)

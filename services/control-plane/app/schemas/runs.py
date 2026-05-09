@@ -17,6 +17,8 @@ class RunPublic(BaseModel):
 
     id: uuid.UUID
     agent_id: uuid.UUID
+    agent_slug: str | None = None
+    agent_name: str | None = None
     agent_version_id: uuid.UUID
     triggering_user_id: uuid.UUID | None
     trigger: str

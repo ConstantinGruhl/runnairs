@@ -13,7 +13,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 3** — Agent SDK + tool gateway (LLM)
 - [x] **Phase 4** — Execution backend (Docker)
 - [x] **Phase 5** — Agent deploy + CLI
-- [ ] **Phase 6** — Catalog + run UI
+- [x] **Phase 6** — Catalog + run UI
 - [ ] **Phase 7** — Approvals
 - [ ] **Phase 8** — Remaining tools + sample agents
 - [ ] **Phase 9** — Feedback loop

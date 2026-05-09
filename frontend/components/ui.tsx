@@ -57,3 +57,34 @@ export function Card({
 export function Label(props: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return <label className="text-sm font-medium" {...props} />;
 }
+
+const BADGE_TONES = {
+  muted: "bg-muted text-foreground/80",
+  amber: "bg-amber-100 text-amber-900",
+  blue: "bg-blue-100 text-blue-900",
+  green: "bg-green-100 text-green-900",
+  red: "bg-red-100 text-red-900",
+  gray: "bg-gray-100 text-gray-700",
+} as const;
+
+export function Badge({
+  children,
+  tone = "muted",
+  className,
+}: {
+  children: React.ReactNode;
+  tone?: keyof typeof BADGE_TONES;
+  className?: string;
+}) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-mono",
+        BADGE_TONES[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
