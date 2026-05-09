@@ -8,7 +8,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 ## Status
 
 - [x] **Phase 0** — Scaffold (compose stack, health checks)
-- [ ] **Phase 1** — Auth + data model
+- [x] **Phase 1** — Auth + data model
 - [ ] **Phase 2** — Secret store
 - [ ] **Phase 3** — Agent SDK + tool gateway (LLM)
 - [ ] **Phase 4** — Execution backend (Docker)
@@ -90,9 +90,26 @@ scripts/         Seed and demo scripts
                             LLM APIs          MailHog SMTP      Mock CRM / sample DB
 ```
 
+## Seeding
+
+After `docker compose up`, seed the demo workspace:
+
+```bash
+./scripts/seed.sh
+```
+
+This creates one tenant ("Demo Workspace") and three users:
+
+| Email              | Password     | Role      |
+|--------------------|--------------|-----------|
+| admin@demo.local   | demo-admin   | admin     |
+| dev@demo.local     | demo-dev     | developer |
+| user@demo.local    | demo-user    | user      |
+
+The script is idempotent — safe to re-run.
+
 ## Known limitations (will resolve in later phases)
 
-- No auth yet (Phase 1).
+- Login UI form is non-functional (Phase 6 wires it up).
 - No real agent execution yet (Phase 4).
-- Login page is non-functional (Phase 1).
 - `agent-runtime` image is a placeholder (Phase 4).
