@@ -1,0 +1,32 @@
+[project]
+name = "control-plane"
+version = "0.1.0"
+description = "Control plane for the agent platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-jose[cryptography]>=3.3",
+    "passlib[bcrypt]>=1.7",
+    "cryptography>=43",
+    "rq>=1.16",
+    "redis>=5.2",
+    "python-multipart>=0.0.20",
+    "httpx>=0.28",
+    "structlog>=24.4",
+    "docker>=7.1",
+    "typer>=0.13",
+    "croniter>=3.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

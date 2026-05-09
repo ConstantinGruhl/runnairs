@@ -1,0 +1,27 @@
+[project]
+name = "tool-gateway"
+version = "0.1.0"
+description = "Tool gateway for the agent platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-jose[cryptography]>=3.3",
+    "cryptography>=43",
+    "httpx>=0.28",
+    "structlog>=24.4",
+    "openai>=1.55",
+    "anthropic>=0.40",
+    "tiktoken>=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

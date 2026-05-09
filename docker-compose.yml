@@ -1,0 +1,131 @@
+name: agent-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-platform}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platform}
+      POSTGRES_DB: ${POSTGRES_DB:-platform}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platform}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sample_data:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${SAMPLE_DB_USER:-sample}
+      POSTGRES_PASSWORD: ${SAMPLE_DB_PASSWORD:-sample}
+      POSTGRES_DB: ${SAMPLE_DB_NAME:-sample}
+    ports:
+      - "5433:5432"
+    volumes:
+      - sample_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SAMPLE_DB_USER:-sample}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mock-crm:
+    build:
+      context: ./services/mock-crm
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  control-plane:
+    build:
+      context: ./services/control-plane
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+      PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
+      TOOL_GATEWAY_URL: http://tool-gateway:8001
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  tool-gateway:
+    build:
+      context: ./services/tool-gateway
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+      PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
+      SAMPLE_DB_URL: postgresql+psycopg://${SAMPLE_DB_USER:-sample}:${SAMPLE_DB_PASSWORD:-sample}@sample_data:5432/${SAMPLE_DB_NAME:-sample}
+      MAILHOG_HOST: mailhog
+      MAILHOG_PORT: "1025"
+      MOCK_CRM_URL: http://mock-crm:8080
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sample_data:
+        condition: service_healthy
+      mailhog:
+        condition: service_healthy
+      mock-crm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  sample_data:
