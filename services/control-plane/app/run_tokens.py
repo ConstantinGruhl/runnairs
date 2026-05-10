@@ -28,6 +28,7 @@ def mint(
     triggering_user_id: uuid.UUID | None = None,
     allowed_tools: list[str],
     secret_grants: list[dict[str, str]] | None = None,
+    approvals_required_for: list[str] | None = None,
     ttl_minutes: int = 30,
 ) -> str:
     now = datetime.now(timezone.utc)
@@ -40,6 +41,7 @@ def mint(
         "triggering_user_id": str(triggering_user_id) if triggering_user_id else None,
         "allowed_tools": list(allowed_tools),
         "secret_grants": list(secret_grants or []),
+        "approvals_required_for": list(approvals_required_for or []),
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=ttl_minutes)).timestamp()),
     }

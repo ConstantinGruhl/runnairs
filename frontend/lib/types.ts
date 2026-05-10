@@ -92,3 +92,16 @@ export interface PendingAgent {
   approved: boolean;
   manifest: Record<string, unknown>;
 }
+
+export interface Approval {
+  id: string;
+  run_id: string;
+  action: string;
+  title: string | null;
+  body: string | null;
+  payload_json: Record<string, unknown> | null;
+  status: "pending" | "approved" | "denied";
+  decided_by: string | null;
+  decided_at: string | null;
+  created_at: string;
+}

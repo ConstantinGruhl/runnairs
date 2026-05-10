@@ -14,7 +14,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 4** — Execution backend (Docker)
 - [x] **Phase 5** — Agent deploy + CLI
 - [x] **Phase 6** — Catalog + run UI
-- [ ] **Phase 7** — Approvals
+- [x] **Phase 7** — Approvals
 - [ ] **Phase 8** — Remaining tools + sample agents
 - [ ] **Phase 9** — Feedback loop
 - [ ] **Phase 10** — Scheduling
@@ -178,9 +178,29 @@ creates a draft `AgentVersion` row. Admins approve it via
 `POST /admin/agents/<slug>/approve` (UI lands in Phase 6) before end
 users can run it.
 
+## Approvals + email
+
+`weekly-summary` now demonstrates the full pause-and-approve loop:
+
+1. End user runs the agent.
+2. After the LLM summary, the agent calls `ctx.request_approval(action="email.send", ...)`.
+3. Run status flips to `awaiting_approval`. The run detail page shows
+   the pending approval inline.
+4. An admin clicks Approve (or hits `POST /admin/approvals/{id}/decide`).
+5. The agent's long-poll returns, the agent calls `tools.email.send`,
+   which the gateway accepts because there's now an approved approval
+   for the `email.send` action.
+6. Email lands in MailHog at <http://localhost:8025>.
+
+If denied (or timed out), the agent returns without calling
+`email.send`. If the agent tries to call an approval-gated tool
+without an approved approval, the gateway returns 403.
+
 ## Known limitations (will resolve in later phases)
 
 - User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired in this phase.
-- Catalog UI for end users to browse/run approved agents lands in Phase 6.
+- `tools.postgres.query` and `tools.http.request` (with allowlist) land
+  in Phase 8 along with the `inbox-triage` and `customer-briefing`
+  sample agents.

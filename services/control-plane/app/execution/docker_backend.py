@@ -65,9 +65,15 @@ class DockerExecutionBackend(ExecutionBackend):
             {"name": s["name"], "scope": s.get("scope", "workspace")}
             for s in permissions.get("secrets", [])
         ]
+        approvals_required = list((manifest.get("approvals", {}) or {}).get("required_for", []))
         limits = manifest.get("limits", {}) or {}
         timeout_seconds = int(limits.get("timeout_seconds", 300))
         memory_mb = int(limits.get("memory_mb", 512))
+
+        # If the agent declares any approvals, give the container plenty of
+        # wall time so it can sit in awaiting_approval without being killed.
+        approval_buffer_seconds = 1800 if approvals_required else 0
+        container_timeout_seconds = timeout_seconds + approval_buffer_seconds
 
         token = run_tokens.mint(
             run_id=run_id,
@@ -77,7 +83,8 @@ class DockerExecutionBackend(ExecutionBackend):
             triggering_user_id=run.triggering_user_id,
             allowed_tools=allowed_tools,
             secret_grants=secret_grants,
-            ttl_minutes=max(2, timeout_seconds // 60 + 5),
+            approvals_required_for=approvals_required,
+            ttl_minutes=max(2, container_timeout_seconds // 60 + 5),
         )
 
         env = {
@@ -91,7 +98,7 @@ class DockerExecutionBackend(ExecutionBackend):
             run_id=run_id,
             image_tag=image_tag,
             env=env,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=container_timeout_seconds,
             memory_mb=memory_mb,
         )
 
