@@ -57,6 +57,16 @@ def create_workspace_connection(
     actor: AdminOnly,
     db: DbSession,
 ) -> dict[str, Any]:
+    existing_secret = secrets_service.get_workspace_secret_by_name(
+        db,
+        tenant_id=actor.tenant_id,
+        name=payload.key,
+    )
+    next_status = (
+        ConnectionStatus.ready
+        if payload.secret_value or existing_secret is not None
+        else ConnectionStatus.pending
+    )
     connection = db.execute(
         select(Connection).where(
             Connection.tenant_id == actor.tenant_id,
@@ -72,20 +82,22 @@ def create_workspace_connection(
             key=payload.key,
             provider_key=payload.provider_key or installations_service.infer_provider_key(payload.key),
             scope=ConnectionScope.workspace,
-            status=ConnectionStatus.ready,
+            status=next_status,
             display_name=payload.display_name or payload.key,
             scopes_json=list(payload.scopes),
             config_json=dict(payload.config),
-            secret_refs_json=dict(payload.secret_refs),
+            secret_refs_json=dict(payload.secret_refs) or {"primary": payload.key},
         )
         db.add(connection)
     else:
         connection.provider_key = payload.provider_key or connection.provider_key
-        connection.status = ConnectionStatus.ready
+        connection.status = next_status
         connection.display_name = payload.display_name or connection.display_name
         connection.scopes_json = list(payload.scopes)
         connection.config_json = dict(payload.config)
-        connection.secret_refs_json = dict(payload.secret_refs)
+        connection.secret_refs_json = (
+            dict(payload.secret_refs) or connection.secret_refs_json or {"primary": payload.key}
+        )
 
     if payload.secret_value:
         secrets_service.upsert_workspace_secret(
@@ -93,6 +105,12 @@ def create_workspace_connection(
             tenant_id=actor.tenant_id,
             name=payload.key,
             value=payload.secret_value,
+        )
+        installations_service.sync_connection_from_secret(
+            db,
+            tenant_id=actor.tenant_id,
+            key=payload.key,
+            scope=ConnectionScope.workspace,
         )
 
     db.commit()

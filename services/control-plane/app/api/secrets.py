@@ -12,7 +12,8 @@ from app.schemas.secrets import (
     WorkspaceSecretPublic,
     WorkspaceSecretUpdate,
 )
-from app.services import secrets_service
+from app.models import ConnectionScope
+from app.services import installations_service, secrets_service
 
 router = APIRouter(prefix="/admin/secrets", tags=["admin", "secrets"])
 
@@ -42,6 +43,12 @@ def create_secret(
     secret = secrets_service.upsert_workspace_secret(
         db, tenant_id=actor.tenant_id, name=payload.name, value=payload.value
     )
+    installations_service.sync_connection_from_secret(
+        db,
+        tenant_id=actor.tenant_id,
+        key=payload.name,
+        scope=ConnectionScope.workspace,
+    )
     db.commit()
     return WorkspaceSecretPublic.model_validate(secret)
 
@@ -60,15 +67,30 @@ def rotate_secret(
     secret = secrets_service.upsert_workspace_secret(
         db, tenant_id=actor.tenant_id, name=target.name, value=payload.value
     )
+    installations_service.sync_connection_from_secret(
+        db,
+        tenant_id=actor.tenant_id,
+        key=target.name,
+        scope=ConnectionScope.workspace,
+    )
     db.commit()
     return WorkspaceSecretPublic.model_validate(secret)
 
 
 @router.delete("/{secret_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_secret(secret_id: uuid.UUID, actor: AdminOnly, db: DbSession) -> None:
+    rows = secrets_service.list_workspace_secrets(db, tenant_id=actor.tenant_id)
+    target = next((secret for secret in rows if secret.id == secret_id), None)
     deleted = secrets_service.delete_workspace_secret(
         db, tenant_id=actor.tenant_id, secret_id=secret_id
     )
     if not deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "secret not found")
+    if target is not None:
+        installations_service.mark_connection_pending_without_secret(
+            db,
+            tenant_id=actor.tenant_id,
+            key=target.name,
+            scope=ConnectionScope.workspace,
+        )
     db.commit()

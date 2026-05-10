@@ -124,7 +124,7 @@ def disconnect_secret(
     if not deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "secret not found")
     if target is not None:
-        installations_service.delete_connection_for_secret(
+        installations_service.mark_connection_pending_without_secret(
             db,
             tenant_id=actor.tenant_id,
             user_id=actor.id,

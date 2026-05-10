@@ -82,21 +82,8 @@ def installation_config(
     return dict((installation.config_json or {}) if installation is not None else {})
 
 
-def available_workspace_connection_keys(db: Session, *, tenant_id: uuid.UUID) -> set[str]:
-    connection_keys = {
-        row.key
-        for row in db.execute(
-            select(Connection).where(
-                Connection.tenant_id == tenant_id,
-                Connection.scope == ConnectionScope.workspace,
-                Connection.status == ConnectionStatus.ready,
-                Connection.user_id.is_(None),
-            )
-        )
-        .scalars()
-        .all()
-    }
-    secret_keys = {
+def workspace_secret_keys(db: Session, *, tenant_id: uuid.UUID) -> set[str]:
+    return {
         row.name
         for row in db.execute(
             select(Secret).where(
@@ -108,32 +95,12 @@ def available_workspace_connection_keys(db: Session, *, tenant_id: uuid.UUID) ->
         .scalars()
         .all()
     }
-    return connection_keys | secret_keys
 
 
-def available_user_connection_keys(
-    db: Session,
-    *,
-    tenant_id: uuid.UUID,
-    user_id: uuid.UUID | None,
-) -> set[str]:
+def user_secret_keys(db: Session, *, tenant_id: uuid.UUID, user_id: uuid.UUID | None) -> set[str]:
     if user_id is None:
         return set()
-
-    connection_keys = {
-        row.key
-        for row in db.execute(
-            select(Connection).where(
-                Connection.tenant_id == tenant_id,
-                Connection.scope == ConnectionScope.user,
-                Connection.status == ConnectionStatus.ready,
-                Connection.user_id == user_id,
-            )
-        )
-        .scalars()
-        .all()
-    }
-    secret_keys = {
+    return {
         row.name
         for row in db.execute(
             select(Secret).where(
@@ -145,7 +112,70 @@ def available_user_connection_keys(
         .scalars()
         .all()
     }
-    return connection_keys | secret_keys
+
+
+def _connection_has_backing_secret(connection: Connection, secret_keys: set[str]) -> bool:
+    if connection.key in secret_keys:
+        return True
+    return any(secret_name in secret_keys for secret_name in connection.secret_refs_json.values())
+
+
+def available_workspace_connection_keys(db: Session, *, tenant_id: uuid.UUID) -> set[str]:
+    secret_keys = workspace_secret_keys(db, tenant_id=tenant_id)
+    rows = (
+        db.execute(
+            select(Connection).where(
+                Connection.tenant_id == tenant_id,
+                Connection.scope == ConnectionScope.workspace,
+                Connection.user_id.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    connection_keys = {
+        row.key
+        for row in rows
+        if row.status == ConnectionStatus.ready and _connection_has_backing_secret(row, secret_keys)
+    }
+    legacy_secret_only_keys = secret_keys - {
+        row.key
+        for row in rows
+    }
+    return connection_keys | legacy_secret_only_keys
+
+
+def available_user_connection_keys(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID | None,
+) -> set[str]:
+    secret_keys = user_secret_keys(db, tenant_id=tenant_id, user_id=user_id)
+    if user_id is None:
+        return set()
+
+    rows = (
+        db.execute(
+            select(Connection).where(
+                Connection.tenant_id == tenant_id,
+                Connection.scope == ConnectionScope.user,
+                Connection.user_id == user_id,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    connection_keys = {
+        row.key
+        for row in rows
+        if row.status == ConnectionStatus.ready and _connection_has_backing_secret(row, secret_keys)
+    }
+    legacy_secret_only_keys = secret_keys - {
+        row.key
+        for row in rows
+    }
+    return connection_keys | legacy_secret_only_keys
 
 
 def build_installation_summary(
@@ -202,7 +232,9 @@ def build_connection_state(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID | None,
 ) -> dict[str, dict[str, Any]]:
-    connection_rows = (
+    workspace_secret_names = workspace_secret_keys(db, tenant_id=tenant_id)
+    user_secret_names = user_secret_keys(db, tenant_id=tenant_id, user_id=user_id)
+    rows = (
         db.execute(
             select(Connection).where(
                 Connection.tenant_id == tenant_id,
@@ -215,13 +247,85 @@ def build_connection_state(
         .scalars()
         .all()
     )
-    by_key = {row.key: row for row in connection_rows}
+    by_key = {row.key: row for row in rows}
     state: dict[str, dict[str, Any]] = {}
     for key in descriptor.get("workspace_connections", []):
-        state[key] = _connection_payload(by_key.get(key), key=key, scope=ConnectionScope.workspace)
+        row = by_key.get(key)
+        if row is None and key in workspace_secret_names:
+            state[key] = {
+                "provider_key": infer_provider_key(key),
+                "scope": "workspace",
+                "status": "ready",
+                "display_name": key,
+            }
+        elif row is None:
+            state[key] = {
+                "provider_key": infer_provider_key(key),
+                "scope": "workspace",
+                "status": "missing",
+                "display_name": key,
+            }
+        else:
+            status = (
+                "ready"
+                if row.status == ConnectionStatus.ready and _connection_has_backing_secret(row, workspace_secret_names)
+                else "pending"
+            )
+            state[key] = {
+                "provider_key": row.provider_key,
+                "scope": row.scope.value,
+                "status": status,
+                "display_name": row.display_name,
+            }
     for key in descriptor.get("user_connections", []):
-        state[key] = _connection_payload(by_key.get(key), key=key, scope=ConnectionScope.user)
+        row = by_key.get(key)
+        if row is None and key in user_secret_names:
+            state[key] = {
+                "provider_key": infer_provider_key(key),
+                "scope": "user",
+                "status": "ready",
+                "display_name": key,
+            }
+        elif row is None:
+            state[key] = {
+                "provider_key": infer_provider_key(key),
+                "scope": "user",
+                "status": "missing",
+                "display_name": key,
+            }
+        else:
+            status = (
+                "ready"
+                if row.status == ConnectionStatus.ready and _connection_has_backing_secret(row, user_secret_names)
+                else "pending"
+            )
+            state[key] = {
+                "provider_key": row.provider_key,
+                "scope": row.scope.value,
+                "status": status,
+                "display_name": row.display_name,
+            }
     return state
+
+
+def _connection_by_key(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    key: str,
+    scope: ConnectionScope,
+    user_id: uuid.UUID | None = None,
+) -> Connection | None:
+    query = select(Connection).where(
+        Connection.tenant_id == tenant_id,
+        Connection.key == key,
+        Connection.scope == scope,
+    )
+    if scope == ConnectionScope.workspace:
+        query = query.where(Connection.user_id.is_(None))
+    else:
+        query = query.where(Connection.user_id == user_id)
+    return db.execute(query).scalar_one_or_none()
 
 
 def sync_connection_from_secret(
@@ -232,17 +336,13 @@ def sync_connection_from_secret(
     scope: ConnectionScope,
     user_id: uuid.UUID | None = None,
 ) -> Connection:
-    query = select(Connection).where(
-        Connection.tenant_id == tenant_id,
-        Connection.key == key,
-        Connection.scope == scope,
+    connection = _connection_by_key(
+        db,
+        tenant_id=tenant_id,
+        key=key,
+        scope=scope,
+        user_id=user_id,
     )
-    if scope == ConnectionScope.workspace:
-        query = query.where(Connection.user_id.is_(None))
-    else:
-        query = query.where(Connection.user_id == user_id)
-
-    connection = db.execute(query).scalar_one_or_none()
     if connection is None:
         connection = Connection(
             tenant_id=tenant_id,
@@ -254,20 +354,22 @@ def sync_connection_from_secret(
             display_name=key,
             scopes_json=[],
             config_json={},
-            secret_refs_json={},
+            secret_refs_json={"primary": key},
         )
         db.add(connection)
         db.flush()
         return connection
 
-    connection.provider_key = connection.provider_key or infer_provider_key(key)
     connection.status = ConnectionStatus.ready
+    connection.provider_key = connection.provider_key or infer_provider_key(key)
     connection.display_name = connection.display_name or key
+    if not connection.secret_refs_json:
+        connection.secret_refs_json = {"primary": key}
     db.flush()
     return connection
 
 
-def delete_connection_for_secret(
+def mark_connection_pending_without_secret(
     db: Session,
     *,
     tenant_id: uuid.UUID,
@@ -275,18 +377,15 @@ def delete_connection_for_secret(
     scope: ConnectionScope,
     user_id: uuid.UUID | None = None,
 ) -> None:
-    query = select(Connection).where(
-        Connection.tenant_id == tenant_id,
-        Connection.key == key,
-        Connection.scope == scope,
+    connection = _connection_by_key(
+        db,
+        tenant_id=tenant_id,
+        key=key,
+        scope=scope,
+        user_id=user_id,
     )
-    if scope == ConnectionScope.workspace:
-        query = query.where(Connection.user_id.is_(None))
-    else:
-        query = query.where(Connection.user_id == user_id)
-    connection = db.execute(query).scalar_one_or_none()
     if connection is not None:
-        db.delete(connection)
+        connection.status = ConnectionStatus.pending
         db.flush()
 
 
@@ -297,22 +396,3 @@ def infer_provider_key(key: str) -> str:
     return "custom"
 
 
-def _connection_payload(
-    connection: Connection | None,
-    *,
-    key: str,
-    scope: ConnectionScope,
-) -> dict[str, Any]:
-    if connection is None:
-        return {
-            "provider_key": infer_provider_key(key),
-            "scope": scope.value,
-            "status": "missing",
-            "display_name": key,
-        }
-    return {
-        "provider_key": connection.provider_key,
-        "scope": connection.scope.value,
-        "status": connection.status.value,
-        "display_name": connection.display_name,
-    }
