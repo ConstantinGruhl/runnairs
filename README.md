@@ -17,7 +17,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 7** — Approvals
 - [x] **Phase 8** — Remaining tools + sample agents
 - [x] **Phase 9** — Feedback loop
-- [ ] **Phase 10** — Scheduling
+- [x] **Phase 10** — Scheduling
 - [ ] **Phase 11** — Platform skill + tests
 - [ ] **Phase 12** — README + demo script
 

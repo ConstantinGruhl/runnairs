@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { RunStatusBadge } from "@/components/RunStatus";
+import { ScheduleManager } from "@/components/ScheduleManager";
 import { Badge, Card } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { AgentFeedbackSummary, Run } from "@/lib/types";
@@ -88,6 +89,8 @@ export default function DevAgentDetail() {
           ))}
         </ul>
       </Card>
+
+      <ScheduleManager slug={params.slug} />
 
       {feedback && (
         <Card className="space-y-3">

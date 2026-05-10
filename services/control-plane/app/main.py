@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, approvals, auth, catalog, dev, feedback, me, runs, secrets
+from app.api import admin, approvals, auth, catalog, dev, feedback, me, runs, schedules, secrets
 
 app = FastAPI(title="Agent Platform Control Plane")
 
@@ -24,6 +24,7 @@ app.include_router(runs.router)
 app.include_router(approvals.router)
 app.include_router(me.router)
 app.include_router(feedback.router)
+app.include_router(schedules.router)
 
 
 @app.get("/health")

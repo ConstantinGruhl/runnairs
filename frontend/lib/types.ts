@@ -131,3 +131,15 @@ export interface AgentFeedbackSummary {
   total_runs_with_feedback: number;
   items: AgentFeedbackEntry[];
 }
+
+export interface Schedule {
+  id: string;
+  agent_id: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  inputs_json: Record<string, unknown> | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
