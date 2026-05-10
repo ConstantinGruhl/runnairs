@@ -1,3 +1,3 @@
-from platform_sdk.tools import email, llm  # noqa: F401
+from platform_sdk.tools import email, http, inbox, llm, postgres  # noqa: F401
 
-__all__ = ["email", "llm"]
+__all__ = ["email", "http", "inbox", "llm", "postgres"]

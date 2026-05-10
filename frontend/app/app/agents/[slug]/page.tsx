@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ConnectedAccounts } from "@/components/ConnectedAccounts";
 import { RunStatusBadge } from "@/components/RunStatus";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -106,20 +107,11 @@ export default function AgentDetailPage() {
             </div>
           </div>
         )}
-        {agent.user_secrets_needed.length > 0 && (
-          <div className="space-y-1.5">
-            <div className="text-xs text-muted-foreground">User-scope secrets needed</div>
-            <div className="flex flex-wrap gap-1">
-              {agent.user_secrets_needed.map((s) => (
-                <Badge key={s.name} tone="blue">{s.name}</Badge>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              These are connected per user in Phase 8.
-            </p>
-          </div>
-        )}
       </Card>
+
+      {agent.user_secrets_needed.length > 0 && (
+        <ConnectedAccounts required={agent.user_secrets_needed} />
+      )}
 
       <Card className="space-y-4">
         <h2 className="text-base font-medium">Run this agent</h2>

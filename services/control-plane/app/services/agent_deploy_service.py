@@ -139,6 +139,13 @@ def _load_manifest(path: Path) -> dict[str, Any]:
             raise DeployError("each `permissions.secrets[]` must be {name, scope}")
         if s["scope"] not in ("workspace", "user"):
             raise DeployError("`permissions.secrets[].scope` must be 'workspace' or 'user'")
+    http_allowlist = permissions.get("http_allowlist") or []
+    if not isinstance(http_allowlist, list) or not all(isinstance(p, str) for p in http_allowlist):
+        raise DeployError("agent.yaml `permissions.http_allowlist` must be a list of strings")
+    if "http.request" in tools and not http_allowlist:
+        raise DeployError(
+            "agent.yaml declares http.request but has no permissions.http_allowlist"
+        )
 
     return manifest
 

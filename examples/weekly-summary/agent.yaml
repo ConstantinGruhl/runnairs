@@ -1,10 +1,8 @@
 name: weekly-summary
 display_name: Weekly Sales Summary
 description: |
-  Summarizes weekly pipeline activity for a region, then asks a human
-  to approve before emailing the summary out. Phase 7 wires in
-  approvals and email; Phase 8 will replace the LLM-fabricated
-  pipeline with a real tools.postgres.query.
+  Pulls the workspace's open pipeline for a region, asks an LLM for a
+  3-bullet summary, pauses for human approval, and emails the summary.
 runtime: python3.12
 entrypoint: main:run
 
@@ -19,6 +17,7 @@ inputs:
 permissions:
   tools:
     - llm.complete
+    - postgres.query
     - email.send
   secrets:
     - name: OPENAI_API_KEY

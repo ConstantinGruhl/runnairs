@@ -1,0 +1,30 @@
+name: customer-briefing
+display_name: Customer Briefing
+description: |
+  Pulls a customer's pipeline from Postgres and their CRM record from
+  the mock CRM (via tools.http with allowlist), then asks the LLM to
+  produce a one-page briefing. Manual trigger only.
+runtime: python3.12
+entrypoint: main:run
+
+inputs:
+  customer_id:
+    type: string
+    required: true
+
+permissions:
+  tools:
+    - postgres.query
+    - http.request
+    - llm.complete
+  secrets:
+    - name: OPENAI_API_KEY
+      scope: workspace
+  http_allowlist:
+    - http://mock-crm:8080/*
+
+limits:
+  timeout_seconds: 60
+  memory_mb: 256
+  max_tokens: 5000
+  max_cost_usd: 0.50

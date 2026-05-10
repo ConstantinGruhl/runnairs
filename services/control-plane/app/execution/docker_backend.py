@@ -66,6 +66,7 @@ class DockerExecutionBackend(ExecutionBackend):
             for s in permissions.get("secrets", [])
         ]
         approvals_required = list((manifest.get("approvals", {}) or {}).get("required_for", []))
+        http_allowlist = list(permissions.get("http_allowlist", []) or [])
         limits = manifest.get("limits", {}) or {}
         timeout_seconds = int(limits.get("timeout_seconds", 300))
         memory_mb = int(limits.get("memory_mb", 512))
@@ -84,6 +85,7 @@ class DockerExecutionBackend(ExecutionBackend):
             allowed_tools=allowed_tools,
             secret_grants=secret_grants,
             approvals_required_for=approvals_required,
+            http_allowlist=http_allowlist,
             ttl_minutes=max(2, container_timeout_seconds // 60 + 5),
         )
 

@@ -27,6 +27,7 @@ services:
       - "5433:5432"
     volumes:
       - sample_data:/var/lib/postgresql/data
+      - ./services/sample-data-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${SAMPLE_DB_USER:-sample}"]
       interval: 5s

@@ -33,6 +33,7 @@ class RunTokenClaims:
     allowed_tools: frozenset[str]
     secret_grants: tuple[SecretGrant, ...]
     approvals_required_for: frozenset[str]
+    http_allowlist: frozenset[str]
 
 
 def _parse_uuid(value: str | None) -> uuid.UUID | None:
@@ -73,6 +74,7 @@ def parse_run_token(token: str) -> RunTokenClaims:
         allowed_tools=frozenset(payload.get("allowed_tools", [])),
         secret_grants=tuple(grants),
         approvals_required_for=frozenset(payload.get("approvals_required_for", [])),
+        http_allowlist=frozenset(payload.get("http_allowlist", [])),
     )
 
 

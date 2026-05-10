@@ -1,0 +1,27 @@
+name: inbox-triage
+display_name: Inbox Triage
+description: |
+  Reads the connected mailbox, classifies each message (urgent, response
+  needed, FYI, junk), and returns a triage summary. Demonstrates the
+  user-scope secret flow — without a connected MAILBOX_TOKEN the run
+  fails with a clear error.
+runtime: python3.12
+entrypoint: main:run
+
+inputs: {}
+
+permissions:
+  tools:
+    - inbox.list
+    - llm.complete
+  secrets:
+    - name: OPENAI_API_KEY
+      scope: workspace
+    - name: MAILBOX_TOKEN
+      scope: user
+
+limits:
+  timeout_seconds: 60
+  memory_mb: 256
+  max_tokens: 4000
+  max_cost_usd: 0.30

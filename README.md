@@ -15,7 +15,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 5** — Agent deploy + CLI
 - [x] **Phase 6** — Catalog + run UI
 - [x] **Phase 7** — Approvals
-- [ ] **Phase 8** — Remaining tools + sample agents
+- [x] **Phase 8** — Remaining tools + sample agents
 - [ ] **Phase 9** — Feedback loop
 - [ ] **Phase 10** — Scheduling
 - [ ] **Phase 11** — Platform skill + tests
@@ -196,11 +196,26 @@ If denied (or timed out), the agent returns without calling
 `email.send`. If the agent tries to call an approval-gated tool
 without an approved approval, the gateway returns 403.
 
+## Sample agents
+
+`scripts/build-examples.sh` builds all four images
+(`hello-world`, `weekly-summary`, `inbox-triage`, `customer-briefing`).
+Deploy them with `platform-cli deploy ./examples/<slug>`. The seed
+script ships only the `hello-world` row; the rest land via deploy.
+
+| Agent | Demonstrates |
+|---|---|
+| weekly-summary | postgres.query + llm + approval + email |
+| inbox-triage | inbox.list (gateway-side mock) + user-scope MAILBOX_TOKEN gating |
+| customer-briefing | postgres + http with `permissions.http_allowlist` against the mock CRM |
+
+Connect a user-scope secret from the catalog page: open an agent that
+declares one (e.g. `inbox-triage`), click Connect under the new
+**Connect your accounts** card, paste a token. Run history shows the
+explicit failure mode if a user runs without connecting first.
+
 ## Known limitations (will resolve in later phases)
 
-- User-scope secrets (per-user OAuth-style tokens) land in Phase 8.
 - Anthropic + other LLM providers can be plugged into the gateway
-  alongside OpenAI; only OpenAI is wired in this phase.
-- `tools.postgres.query` and `tools.http.request` (with allowlist) land
-  in Phase 8 along with the `inbox-triage` and `customer-briefing`
-  sample agents.
+  alongside OpenAI; only OpenAI is wired today.
+- Cron-based scheduling lands in Phase 10.
