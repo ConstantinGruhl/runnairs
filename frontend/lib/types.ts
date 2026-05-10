@@ -20,6 +20,34 @@ export interface WorkspaceSecret {
   updated_at: string;
 }
 
+export interface ModuleSpec {
+  id: string;
+  title?: string;
+  required?: boolean;
+  enabled_by_default?: boolean;
+  depends_on_provider_plugins?: string[];
+}
+
+export interface InstallationSummary {
+  status: "draft" | "ready" | "active" | "blocked";
+  ready: boolean;
+  enabled_modules: string[];
+  missing_workspace_connections: string[];
+  missing_user_connections: string[];
+  disabled_required_modules: string[];
+  config: Record<string, unknown>;
+}
+
+export interface ConnectionRecord {
+  id: string;
+  key: string;
+  provider_key: string;
+  scope: string;
+  status: string;
+  display_name: string;
+  scopes?: string[];
+}
+
 export interface CatalogEntry {
   slug: string;
   name: string;
@@ -29,6 +57,8 @@ export interface CatalogEntry {
   tools: string[];
   approvals_required_for: string[];
   user_secrets_needed: { name: string; scope: string }[];
+  modules: ModuleSpec[];
+  installation: InstallationSummary;
 }
 
 export interface InputSpec {
@@ -80,6 +110,12 @@ export interface AgentSummary {
   current_version_id: string | null;
   version_count: number;
   created_at: string;
+}
+
+export interface AgentInstallationDetail extends InstallationSummary {
+  agent_id: string;
+  version_id: string;
+  modules: ModuleSpec[];
 }
 
 export interface PendingAgent {

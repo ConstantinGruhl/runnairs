@@ -22,7 +22,9 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.execution.job_queue import RqJobQueue
-from app.models import Agent, Run, RunStatus, RunTrigger, Schedule
+from app.models import Agent, AgentVersion, AutomationInstallation, Run, RunStatus, RunTrigger, Schedule
+from app.services import installations_service
+from app.services.package_descriptor import normalize_stored_descriptor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -58,6 +60,33 @@ def tick() -> int:
                 # Still advance so we don't busy-loop on a broken schedule.
                 sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
                 continue
+            version = db.get(AgentVersion, agent.current_version_id)
+            installation = db.execute(
+                select(AutomationInstallation).where(AutomationInstallation.agent_id == agent.id)
+            ).scalar_one_or_none()
+            if version is not None:
+                manifest = normalize_stored_descriptor(
+                    version.manifest_json,
+                    descriptor_format=version.descriptor_format,
+                )
+                summary = installations_service.build_installation_summary(
+                    descriptor=manifest,
+                    installation=installation,
+                    available_workspace_connections=installations_service.available_workspace_connection_keys(
+                        db, tenant_id=agent.tenant_id
+                    ),
+                    available_user_connections=set(),
+                )
+                if summary["disabled_required_modules"]:
+                    logger.warning(
+                        "schedule %s skipped: required modules disabled for agent %s (%s)",
+                        sched.id,
+                        agent.slug,
+                        ",".join(summary["disabled_required_modules"]),
+                    )
+                    sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
+                    db.commit()
+                    continue
 
             run = Run(
                 agent_id=agent.id,

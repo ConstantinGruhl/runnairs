@@ -3,7 +3,20 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, approvals, auth, catalog, dev, feedback, me, runs, schedules, secrets
+from app.api import (
+    admin,
+    approvals,
+    auth,
+    catalog,
+    connections,
+    dev,
+    feedback,
+    installations,
+    me,
+    runs,
+    schedules,
+    secrets,
+)
 
 app = FastAPI(title="Agent Platform Control Plane")
 
@@ -17,6 +30,8 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(connections.router)
+app.include_router(installations.router)
 app.include_router(secrets.router)
 app.include_router(dev.router)
 app.include_router(catalog.router)

@@ -8,8 +8,9 @@ the AgentVersion row.
 from __future__ import annotations
 
 import io
+import importlib
 import logging
-import re
+import sys
 import tempfile
 import uuid
 import zipfile
@@ -18,18 +19,16 @@ from pathlib import Path
 from typing import Any
 
 import docker
-import yaml
 from docker.errors import BuildError, DockerException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Agent, AgentStatus, AgentVersion
+from app.services.package_descriptor import load_package_descriptor
 
 logger = logging.getLogger(__name__)
 
 _BASE_IMAGE = "platform/agent-runtime:latest"
-_SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
-_REQUIRED_TOP_FIELDS = ("name", "entrypoint")
 
 
 class DeployError(Exception):
@@ -56,14 +55,21 @@ def deploy(
         tmp = Path(tmpdir)
         _safe_extract(archive_bytes, tmp)
 
-        manifest_path = tmp / "agent.yaml"
-        if not manifest_path.exists():
-            raise DeployError("archive is missing agent.yaml at the top level")
         if not (tmp / "main.py").exists():
             raise DeployError("archive is missing main.py at the top level")
 
-        manifest = _load_manifest(manifest_path)
+        try:
+            descriptor = load_package_descriptor(tmp)
+        except ValueError as e:
+            raise DeployError(str(e)) from e
+
+        manifest = descriptor.data
         slug = manifest["name"]
+        try:
+            inspection = inspect_package(tmp, manifest["entrypoint"])
+            validate_descriptor_against_inspection(manifest, inspection)
+        except ValueError as e:
+            raise DeployError(str(e)) from e
 
         agent = _upsert_agent(db, tenant_id=tenant_id, slug=slug, manifest=manifest, created_by=created_by)
         version = _next_version(db, agent.id)
@@ -76,6 +82,9 @@ def deploy(
             agent_id=agent.id,
             version=version,
             manifest_json=manifest,
+            descriptor_format=descriptor.format,
+            compatibility_version=_compatibility_version(manifest),
+            inspection_json=inspection,
             image_tag=image_tag,
             created_by=created_by,
         )
@@ -105,49 +114,63 @@ def _safe_extract(archive_bytes: bytes, target: Path) -> None:
         raise DeployError(f"archive is not a valid zip file: {e}") from e
 
 
-def _load_manifest(path: Path) -> dict[str, Any]:
+def inspect_package(root: Path, entrypoint: str) -> dict[str, Any]:
+    module_name, function_name = entrypoint.split(":", 1)
+    sys_path_added = False
+    importlib.invalidate_caches()
+    original_module = sys.modules.pop(module_name, None)
     try:
-        manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as e:
-        raise DeployError(f"agent.yaml parse error: {e}") from e
-    if not isinstance(manifest, dict):
-        raise DeployError("agent.yaml must be a mapping at the top level")
+        sys.path.insert(0, str(root))
+        sys_path_added = True
+        module = importlib.import_module(module_name)
+    finally:
+        if sys_path_added and sys.path and sys.path[0] == str(root):
+            sys.path.pop(0)
+        if original_module is not None:
+            sys.modules[module_name] = original_module
+        else:
+            sys.modules.pop(module_name, None)
 
-    for field in _REQUIRED_TOP_FIELDS:
-        if not manifest.get(field):
-            raise DeployError(f"agent.yaml missing required field: {field!r}")
+    if not hasattr(module, function_name):
+        raise ValueError(f"entrypoint {entrypoint!r} is missing")
 
-    slug = manifest["name"]
-    if not isinstance(slug, str) or not _SLUG_RE.match(slug):
-        raise DeployError(
-            "agent.yaml `name` must match ^[a-z][a-z0-9-]{0,62}$ (lowercase, hyphens)"
-        )
-    if ":" not in str(manifest["entrypoint"]):
-        raise DeployError("agent.yaml `entrypoint` must be in the form 'module:function'")
+    meta = getattr(module, "AUTOMATION_META", {})
+    if meta and not isinstance(meta, dict):
+        raise ValueError("AUTOMATION_META must be a mapping when provided")
 
-    permissions = manifest.get("permissions") or {}
-    if not isinstance(permissions, dict):
-        raise DeployError("agent.yaml `permissions` must be a mapping")
-    tools = permissions.get("tools") or []
-    if not isinstance(tools, list) or not all(isinstance(t, str) for t in tools):
-        raise DeployError("agent.yaml `permissions.tools` must be a list of strings")
-    secrets = permissions.get("secrets") or []
-    if not isinstance(secrets, list):
-        raise DeployError("agent.yaml `permissions.secrets` must be a list")
-    for s in secrets:
-        if not isinstance(s, dict) or "name" not in s or "scope" not in s:
-            raise DeployError("each `permissions.secrets[]` must be {name, scope}")
-        if s["scope"] not in ("workspace", "user"):
-            raise DeployError("`permissions.secrets[].scope` must be 'workspace' or 'user'")
-    http_allowlist = permissions.get("http_allowlist") or []
-    if not isinstance(http_allowlist, list) or not all(isinstance(p, str) for p in http_allowlist):
-        raise DeployError("agent.yaml `permissions.http_allowlist` must be a list of strings")
-    if "http.request" in tools and not http_allowlist:
-        raise DeployError(
-            "agent.yaml declares http.request but has no permissions.http_allowlist"
-        )
+    module_specs = meta.get("modules", []) if isinstance(meta, dict) else []
+    modules = [
+        module_spec["id"]
+        for module_spec in module_specs
+        if isinstance(module_spec, dict) and module_spec.get("id")
+    ]
+    if not modules:
+        modules = ["default"]
 
-    return manifest
+    return {
+        "runtime_api": meta.get("runtime_api", "v1") if isinstance(meta, dict) else "v1",
+        "modules": modules,
+        "triggers": list(meta.get("triggers", ["manual"])) if isinstance(meta, dict) else ["manual"],
+        "channels": list(meta.get("channels", [])) if isinstance(meta, dict) else [],
+        "entrypoint": entrypoint,
+    }
+
+
+def validate_descriptor_against_inspection(descriptor: dict[str, Any], inspection: dict[str, Any]) -> None:
+    declared_modules = {module["id"] for module in descriptor.get("modules", []) if isinstance(module, dict)}
+    implemented_modules = set(inspection.get("modules", []))
+    missing_modules = sorted(declared_modules - implemented_modules)
+    if missing_modules:
+        raise ValueError(f"descriptor declares modules with no implementation: {missing_modules}")
+
+    expected_runtime_api = (descriptor.get("compatibility") or {}).get("runtime_api", "v1")
+    if inspection.get("runtime_api") != expected_runtime_api:
+        raise ValueError("descriptor runtime_api does not match inspected runtime_api")
+
+
+def _compatibility_version(manifest: dict[str, Any]) -> str:
+    runtime_api = (manifest.get("compatibility") or {}).get("runtime_api", "v1")
+    return f"runtime_api:{runtime_api}"
 
 
 def _upsert_agent(

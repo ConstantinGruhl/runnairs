@@ -20,11 +20,14 @@ from datetime import datetime, timezone
 
 import docker
 from docker.errors import APIError, ContainerError, ImageNotFound, NotFound
+from sqlalchemy import select
 
 from app import run_tokens
 from app.core.db import SessionLocal
 from app.execution.backend import ExecutionBackend, ExecutionOutcome
-from app.models import AgentVersion, Run, RunStatus
+from app.models import AgentVersion, AutomationInstallation, Run, RunStatus
+from app.services import installations_service
+from app.services.package_descriptor import normalize_stored_descriptor
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,27 @@ class DockerExecutionBackend(ExecutionBackend):
             db.commit()
 
             tenant_id = _tenant_for_run(db, run)
-            manifest = version.manifest_json or {}
+            manifest = normalize_stored_descriptor(
+                version.manifest_json,
+                descriptor_format=version.descriptor_format,
+            )
             image_tag = version.image_tag
+            installation = db.execute(
+                select(AutomationInstallation).where(AutomationInstallation.agent_id == run.agent_id)
+            ).scalar_one_or_none()
+            installation_state = {
+                "enabled_modules": installations_service.enabled_modules_for_installation(
+                    manifest,
+                    installation,
+                ),
+                "connections": installations_service.build_connection_state(
+                    db=db,
+                    descriptor=manifest,
+                    tenant_id=tenant_id,
+                    user_id=run.triggering_user_id,
+                ),
+                "config": installations_service.installation_config(installation),
+            }
 
         if not image_tag:
             return self._fail(run_id, "agent_version has no image_tag")
@@ -86,6 +108,7 @@ class DockerExecutionBackend(ExecutionBackend):
             secret_grants=secret_grants,
             approvals_required_for=approvals_required,
             http_allowlist=http_allowlist,
+            installation_state=installation_state,
             ttl_minutes=max(2, container_timeout_seconds // 60 + 5),
         )
 
@@ -94,6 +117,7 @@ class DockerExecutionBackend(ExecutionBackend):
             "RUN_TOKEN": token,
             "TOOL_GATEWAY_URL": self._gateway_url,
             "RUN_INPUTS": json.dumps(run.inputs_json or {}),
+            "RUN_INSTALLATION_STATE": json.dumps(installation_state),
         }
 
         return self._run_container(

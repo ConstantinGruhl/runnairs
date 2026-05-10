@@ -30,6 +30,7 @@ def mint(
     secret_grants: list[dict[str, str]] | None = None,
     approvals_required_for: list[str] | None = None,
     http_allowlist: list[str] | None = None,
+    installation_state: dict[str, Any] | None = None,
     ttl_minutes: int = 30,
 ) -> str:
     now = datetime.now(timezone.utc)
@@ -44,6 +45,7 @@ def mint(
         "secret_grants": list(secret_grants or []),
         "approvals_required_for": list(approvals_required_for or []),
         "http_allowlist": list(http_allowlist or []),
+        "installation_state": installation_state or {},
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=ttl_minutes)).timestamp()),
     }

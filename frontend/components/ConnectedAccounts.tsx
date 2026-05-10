@@ -71,30 +71,33 @@ export function ConnectedAccounts({
   }
 
   if (required.length === 0) return null;
-  const byName = new Map((connected ?? []).map((c) => [c.name, c]));
+  const byName = new Map((connected ?? []).map((secret) => [secret.name, secret]));
 
   return (
     <Card className="space-y-3">
       <div>
         <h2 className="text-base font-medium">Connect your accounts</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          This agent reaches services on your behalf. Paste a token for each.
+          This automation reaches services on your behalf. Connect the user-scoped accounts it needs here.
         </p>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <ul className="space-y-2">
-        {required.map((req) => {
-          const connectedSecret = byName.get(req.name);
-          const isEditing = editing === req.name;
+        {required.map((requirement) => {
+          const connectedSecret = byName.get(requirement.name);
+          const isEditing = editing === requirement.name;
           return (
-            <li key={req.name} className="border-t border-border pt-2 first:border-0 first:pt-0">
+            <li
+              key={requirement.name}
+              className="border-t border-border pt-2 first:border-0 first:pt-0"
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-mono text-sm">{req.name}</div>
+                  <div className="font-mono text-sm">{requirement.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {connectedSecret
                       ? `connected · updated ${new Date(connectedSecret.updated_at).toLocaleString()}`
-                      : "not connected"}
+                      : "connection missing"}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -104,7 +107,7 @@ export function ConnectedAccounts({
                       <Button
                         variant="secondary"
                         onClick={() => {
-                          setEditing(req.name);
+                          setEditing(requirement.name);
                           setDraft("");
                         }}
                         disabled={busy}
@@ -123,7 +126,7 @@ export function ConnectedAccounts({
                   {!connectedSecret && !isEditing && (
                     <Button
                       onClick={() => {
-                        setEditing(req.name);
+                        setEditing(requirement.name);
                         setDraft("");
                       }}
                       disabled={busy}
@@ -142,7 +145,7 @@ export function ConnectedAccounts({
                     onChange={(e) => setDraft(e.target.value)}
                     className="flex-1"
                   />
-                  <Button onClick={() => connect(req.name)} disabled={!draft || busy}>
+                  <Button onClick={() => connect(requirement.name)} disabled={!draft || busy}>
                     Save
                   </Button>
                   <Button

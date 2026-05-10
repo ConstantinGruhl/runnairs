@@ -1,4 +1,4 @@
-"""platform-cli — developer CLI for deploying agents to the platform."""
+"""platform-cli - developer CLI for deploying automations to the platform."""
 from __future__ import annotations
 
 import getpass
@@ -7,6 +7,7 @@ import json
 import os
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import typer
 import yaml
@@ -21,7 +22,8 @@ def login(
     email: str = typer.Option(..., "--email"),
     api_url: str = typer.Option("http://localhost:8000", "--api-url"),
     password: str | None = typer.Option(
-        None, "--password",
+        None,
+        "--password",
         help="If omitted, reads from stdin (or PLATFORM_CLI_PASSWORD env var).",
     ),
 ) -> None:
@@ -44,7 +46,7 @@ def login(
         tenant_id=user["tenant_id"],
     )
     cfg.save()
-    typer.echo(f"signed in as {user['email']} ({user['role']}) — config saved")
+    typer.echo(f"signed in as {user['email']} ({user['role']}) - config saved")
 
 
 @cli.command("logout")
@@ -56,10 +58,10 @@ def logout() -> None:
 
 @cli.command("init")
 def init(
-    name: str = typer.Argument(..., help="Slug for the new agent (lowercase, hyphens)."),
-    target: Path = typer.Option(Path.cwd(), "--target", help="Directory to create the agent in."),
+    name: str = typer.Argument(..., help="Slug for the new automation (lowercase, hyphens)."),
+    target: Path = typer.Option(Path.cwd(), "--target", help="Directory to create the automation in."),
 ) -> None:
-    """Scaffold a new agent directory with agent.yaml + main.py."""
+    """Scaffold a new automation directory with automation.yaml + main.py."""
     if not name.replace("-", "").isalnum() or not name.islower():
         typer.secho("name must be lowercase alphanumeric with hyphens", fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
@@ -70,44 +72,66 @@ def init(
         raise typer.Exit(2)
     out_dir.mkdir(parents=True)
 
-    (out_dir / "agent.yaml").write_text(_AGENT_YAML_TEMPLATE.format(name=name))
-    (out_dir / "main.py").write_text(_MAIN_PY_TEMPLATE)
-    (out_dir / "requirements.txt").write_text("# extra Python deps for this agent\n")
+    files = render_automation_template(
+        slug=name,
+        display_name=name.replace("-", " ").title(),
+        modules=["default"],
+    )
+    for relative_path, content in files.items():
+        destination = out_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
 
     typer.echo(f"created {out_dir}")
-    typer.echo(f"Edit agent.yaml and main.py, then run `platform-cli deploy ./{name}`")
+    typer.echo(f"Edit automation.yaml and main.py, then run `platform-cli deploy ./{name}`")
 
 
 @cli.command("deploy")
 def deploy(
-    path: Path = typer.Argument(Path.cwd(), help="Path to the agent directory."),
+    path: Path = typer.Argument(Path.cwd(), help="Path to the automation directory."),
 ) -> None:
-    """Zip the agent directory and deploy it to the control plane."""
+    """Zip the automation directory and deploy it to the control plane."""
     cfg = _try_load_config()
     if cfg.role not in ("developer", "admin"):
         typer.secho(
-            f"role {cfg.role!r} cannot deploy agents (developer or admin required)",
-            fg=typer.colors.RED, err=True,
+            f"role {cfg.role!r} cannot deploy automations (developer or admin required)",
+            fg=typer.colors.RED,
+            err=True,
         )
         raise typer.Exit(2)
 
     path = path.resolve()
-    if not (path / "agent.yaml").exists():
-        typer.secho(f"{path}/agent.yaml not found", fg=typer.colors.RED, err=True)
+    manifest_path = _find_manifest_path(path)
+    if manifest_path is None:
+        typer.secho(
+            f"{path} is missing automation.yaml or agent.yaml",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(2)
     if not (path / "main.py").exists():
         typer.secho(f"{path}/main.py not found", fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
 
-    # Sanity-validate manifest locally before uploading.
     try:
-        manifest = yaml.safe_load((path / "agent.yaml").read_text()) or {}
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as e:
-        typer.secho(f"agent.yaml parse error: {e}", fg=typer.colors.RED, err=True)
+        typer.secho(f"{manifest_path.name} parse error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(2)
+    if not isinstance(manifest, dict):
+        typer.secho(
+            f"{manifest_path.name} must be a mapping at the top level",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(2)
     for required in ("name", "entrypoint"):
         if not manifest.get(required):
-            typer.secho(f"agent.yaml missing required field: {required}", fg=typer.colors.RED, err=True)
+            typer.secho(
+                f"{manifest_path.name} missing required field: {required}",
+                fg=typer.colors.RED,
+                err=True,
+            )
             raise typer.Exit(2)
 
     typer.echo(f"deploying {manifest['name']} from {path}")
@@ -116,7 +140,8 @@ def deploy(
 
     try:
         body = _api.post_multipart(
-            cfg.api_url, "/dev/agents/deploy",
+            cfg.api_url,
+            "/dev/agents/deploy",
             files={"archive": ("agent.zip", zip_bytes, "application/zip")},
             token=cfg.token,
             timeout=300.0,
@@ -130,7 +155,7 @@ def deploy(
         f"(agent_id={body['agent_id']}, image_tag={body['image_tag']})"
     )
     if body.get("status") == "draft":
-        typer.echo("note: agent is draft; an admin must approve it before end users can run it")
+        typer.echo("note: automation is draft; an admin must approve it before end users can run it")
 
 
 @cli.command("runs")
@@ -165,39 +190,87 @@ def _zip_directory(path: Path) -> bytes:
     return buf.getvalue()
 
 
-_AGENT_YAML_TEMPLATE = """\
-name: {name}
-display_name: {name}
-description: TODO — what does this agent do?
-runtime: python3.12
-entrypoint: main:run
+def _find_manifest_path(path: Path) -> Path | None:
+    for name in ("automation.yaml", "agent.yaml"):
+        manifest_path = path / name
+        if manifest_path.exists():
+            return manifest_path
+    return None
 
-inputs: {{}}
 
-permissions:
-  tools:
-    - llm.complete
-  secrets:
-    - name: OPENAI_API_KEY
-      scope: workspace
+def render_automation_template(*, slug: str, display_name: str, modules: list[str]) -> dict[str, str]:
+    return {
+        "automation.yaml": render_automation_yaml(
+            slug=slug,
+            display_name=display_name,
+            modules=modules,
+        ),
+        "main.py": render_automation_main(modules=modules),
+        "README.md": _README_TEMPLATE.format(display_name=display_name),
+        "AI_INSTRUCTIONS.md": _AI_INSTRUCTIONS_TEMPLATE,
+        "tests/test_agent.py": _TEST_TEMPLATE,
+    }
 
-limits:
-  timeout_seconds: 60
-  memory_mb: 256
-  max_tokens: 5000
-  max_cost_usd: 0.50
+
+def render_automation_yaml(*, slug: str, display_name: str, modules: list[str]) -> str:
+    return yaml.safe_dump(
+        {
+            "name": slug,
+            "display_name": display_name,
+            "description": f"TODO - describe what {display_name} does.",
+            "runtime": "python3.12",
+            "entrypoint": "main:run",
+            "compatibility": {"runtime_api": "v2"},
+            "inputs": {},
+            "modules": [
+                {
+                    "id": module_id,
+                    "title": module_id.replace("_", " ").title(),
+                    "required": index == 0,
+                    "enabled_by_default": True,
+                }
+                for index, module_id in enumerate(modules)
+            ],
+            "tools": [],
+            "limits": {
+                "timeout_seconds": 60,
+                "memory_mb": 256,
+                "max_tokens": 5000,
+                "max_cost_usd": 0.50,
+            },
+        },
+        sort_keys=False,
+    )
+
+
+def render_automation_main(*, modules: list[str]) -> str:
+    meta: dict[str, Any] = {
+        "runtime_api": "v2",
+        "modules": [{"id": module_id} for module_id in modules],
+        "triggers": ["manual"],
+    }
+    return (
+        "AUTOMATION_META = " + json.dumps(meta, indent=2) + "\n\n"
+        + "def run() -> dict:\n"
+        + '    return {"ok": True}\n'
+    )
+
+
+_README_TEMPLATE = """# {display_name}
+
+Native automation package scaffolded by `platform-cli init`.
 """
 
-_MAIN_PY_TEMPLATE = '''from platform_sdk import ctx, tools
+_AI_INSTRUCTIONS_TEMPLATE = """Build inside the declared module boundaries.
+Prefer updating `automation.yaml` over adding sidecar config files when metadata changes.
+"""
+
+_TEST_TEMPLATE = """from main import run
 
 
-def run() -> dict:
-    result = tools.llm.complete(
-        model="gpt-4o-mini",
-        prompt="Say hello in five words.",
-    )
-    return {"text": result.text, "tokens": result.tokens_used}
-'''
+def test_run_returns_ok() -> None:
+    assert run()["ok"] is True
+"""
 
 
 if __name__ == "__main__":

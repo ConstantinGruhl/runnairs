@@ -16,5 +16,13 @@ from __future__ import annotations
 from platform_sdk import tools  # noqa: F401
 from platform_sdk.context import ctx  # noqa: F401
 
-__all__ = ["tools", "ctx"]
+__all__ = ["tools", "ctx", "inspect_package"]
 __version__ = "0.1.0"
+
+
+def __getattr__(name: str):
+    if name == "inspect_package":
+        from platform_sdk.inspect import inspect_package
+
+        return inspect_package
+    raise AttributeError(name)

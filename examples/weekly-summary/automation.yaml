@@ -1,0 +1,47 @@
+name: weekly-summary
+display_name: Weekly Sales Summary
+description: |
+  Pull the workspace pipeline, summarize it, and deliver the result through
+  enabled channels.
+runtime: python3.12
+entrypoint: main:run
+
+compatibility:
+  runtime_api: v2
+
+inputs:
+  region:
+    type: string
+    required: true
+  recipient_email:
+    type: string
+    required: true
+
+workspace_connections:
+  - OPENAI_API_KEY
+
+modules:
+  - id: summary_generation
+    title: Summary generation
+    required: true
+    enabled_by_default: true
+  - id: email_delivery
+    title: Email delivery
+    required: false
+    enabled_by_default: true
+    depends_on_provider_plugins:
+      - smtp_email
+
+tools:
+  - llm.complete
+  - postgres.query
+  - email.send
+
+approvals_required_for:
+  - email.send
+
+limits:
+  timeout_seconds: 60
+  memory_mb: 256
+  max_tokens: 5000
+  max_cost_usd: 0.50

@@ -8,8 +8,10 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.dependencies import CurrentUser, DbSession
 from app.execution.job_queue import RqJobQueue
-from app.models import Agent, AgentStatus, Run, RunStatus, RunTrigger
+from app.models import Agent, AgentStatus, AgentVersion, AutomationInstallation, Run, RunStatus, RunTrigger
 from app.schemas.runs import RunPublic, RunStartRequest
+from app.services import installations_service
+from app.services.package_descriptor import normalize_stored_descriptor
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -79,6 +81,35 @@ def start_run(payload: RunStartRequest, actor: CurrentUser, db: DbSession) -> Ru
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "agent has no current version; deploy one first",
+        )
+    version = db.get(AgentVersion, agent.current_version_id)
+    if version is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "current agent version not found")
+    manifest = normalize_stored_descriptor(
+        version.manifest_json,
+        descriptor_format=version.descriptor_format,
+    )
+
+    installation = db.execute(
+        select(AutomationInstallation).where(AutomationInstallation.agent_id == agent.id)
+    ).scalar_one_or_none()
+    summary = installations_service.build_installation_summary(
+        descriptor=manifest,
+        installation=installation,
+        available_workspace_connections=installations_service.available_workspace_connection_keys(
+            db, tenant_id=actor.tenant_id
+        ),
+        available_user_connections=installations_service.available_user_connection_keys(
+            db,
+            tenant_id=actor.tenant_id,
+            user_id=actor.id,
+        ),
+    )
+    if summary["disabled_required_modules"]:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "required modules are disabled: "
+            + ", ".join(summary["disabled_required_modules"]),
         )
 
     run = Run(

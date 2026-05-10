@@ -5,6 +5,7 @@ import { RoleGuard } from "@/components/RoleGuard";
 
 const NAV = [
   { label: "Agents", href: "/admin/agents" },
+  { label: "Connections", href: "/admin/connections" },
   { label: "Secrets", href: "/admin/secrets" },
 ];
 

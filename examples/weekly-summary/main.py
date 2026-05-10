@@ -6,6 +6,16 @@ it out.
 """
 from platform_sdk import ctx, tools
 
+AUTOMATION_META = {
+    "runtime_api": "v2",
+    "modules": [
+        {"id": "summary_generation"},
+        {"id": "email_delivery"},
+    ],
+    "triggers": ["manual", "schedule"],
+    "channels": ["email"],
+}
+
 
 def run() -> dict:
     region = ctx.inputs["region"]

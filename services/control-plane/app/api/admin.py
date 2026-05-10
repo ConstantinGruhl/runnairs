@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
+import httpx
+import redis
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from app.core.config import settings
 from app.core.dependencies import DbSession, require_role
 from app.models import Agent, AgentStatus, AgentVersion, User
+from app.services.package_descriptor import normalize_stored_descriptor
 from app.schemas.auth import UserPublic
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -56,7 +61,10 @@ def list_pending_agents(actor: AdminOnly, db: DbSession) -> dict:
             "latest_version": latest.version,
             "latest_version_id": str(latest.id),
             "approved": latest.approved_by is not None,
-            "manifest": latest.manifest_json,
+            "manifest": normalize_stored_descriptor(
+                latest.manifest_json,
+                descriptor_format=latest.descriptor_format,
+            ),
         })
     return {"agents": out}
 
@@ -92,3 +100,38 @@ def approve_agent(slug: str, actor: AdminOnly, db: DbSession) -> dict:
         "version_id": str(latest.id),
         "status": agent.status.value,
     }
+
+
+@router.get("/diagnostics")
+def diagnostics(actor: AdminOnly, db: DbSession) -> dict:
+    return {
+        "database": _check_database(db),
+        "redis": _check_redis(),
+        "tool_gateway": _check_tool_gateway(),
+        "runtime_mode": os.getenv("PLATFORM_RUNTIME_MODE", "docker-socket"),
+        "demo_dependencies_enabled": os.getenv("DEMO_DEPENDENCIES_ENABLED", "true").lower() == "true",
+    }
+
+
+def _check_database(db: DbSession) -> str:
+    try:
+        db.execute(text("SELECT 1"))
+        return "ok"
+    except Exception:
+        return "error"
+
+
+def _check_redis() -> str:
+    try:
+        client = redis.from_url(settings.redis_url)
+        return "ok" if client.ping() else "error"
+    except Exception:
+        return "error"
+
+
+def _check_tool_gateway() -> str:
+    try:
+        response = httpx.get(f"{settings.tool_gateway_url}/health", timeout=3.0)
+        return "ok" if response.status_code == 200 else "error"
+    except Exception:
+        return "error"

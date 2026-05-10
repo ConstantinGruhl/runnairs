@@ -1,6 +1,6 @@
 ---
 name: platform-agent
-description: Use this skill when building, modifying, or reviewing an agent for the Enterprise AI Agent Platform. Triggers when you see an agent.yaml + main.py pair, when the user asks to "write an agent that …" or "add a tool to my agent", or when working inside any directory under examples/ in this repo. Covers the agent contract, the SDK surface, the platform's invariants, the deploy flow, and a pre-deploy checklist.
+description: Use this skill when building, modifying, or reviewing an automation package for the Enterprise AI Agent Platform. Triggers when you see an automation.yaml or agent.yaml plus main.py, when the user asks to "write an agent that …" or "add a tool to my agent", or when working inside any directory under examples/ in this repo. Covers the package contract, the SDK surface, the platform's invariants, the deploy flow, and a pre-deploy checklist.
 ---
 
 # platform-agent skill
@@ -18,7 +18,7 @@ No raw SQL connections. The SDK is the only allowed surface.
 
 Trigger when:
 
-- You see a directory containing both `agent.yaml` and `main.py`.
+- You see a directory containing `automation.yaml` or `agent.yaml` and `main.py`.
 - The user asks to write, modify, or review a platform agent
   ("build an agent that…", "add a tool to my agent", "why does my agent
   fail to deploy", etc.).
@@ -26,7 +26,10 @@ Trigger when:
 
 ## Agent contract
 
-A deployed agent is a directory with three files:
+A native automation package should start with `automation.yaml`.
+Use `agent.yaml` only when maintaining a compatibility package that has not migrated yet.
+
+A deployed agent is a directory with these core files:
 
 ```
 my-agent/

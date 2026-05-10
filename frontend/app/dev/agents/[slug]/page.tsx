@@ -4,16 +4,20 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { InstallationReadinessCard } from "@/components/InstallationReadinessCard";
+import { ModuleActivationCard } from "@/components/ModuleActivationCard";
 import { RunStatusBadge } from "@/components/RunStatus";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { Badge, Card } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import type { AgentFeedbackSummary, Run } from "@/lib/types";
+import type { AgentFeedbackSummary, InstallationSummary, ModuleSpec, Run } from "@/lib/types";
 
 interface AgentVersion {
   id: string;
   version: string;
   image_tag: string | null;
+  descriptor_format: string;
+  inspection: Record<string, unknown> | null;
   created_at: string;
   approved_at: string | null;
   is_current: boolean;
@@ -26,6 +30,8 @@ interface AgentDetail {
   description: string | null;
   status: string;
   current_version_id: string | null;
+  modules: ModuleSpec[];
+  installation: InstallationSummary | null;
   versions: AgentVersion[];
 }
 
@@ -49,7 +55,7 @@ export default function DevAgentDetail() {
   }, [params.slug]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (agent === null) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (agent === null) return <p className="text-sm text-muted-foreground">Loading...</p>;
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -72,23 +78,39 @@ export default function DevAgentDetail() {
       <Card>
         <h2 className="text-base font-medium mb-3">Versions</h2>
         <ul className="divide-y divide-border">
-          {agent.versions.map((v) => (
-            <li key={v.id} className="py-2.5 flex items-center justify-between gap-3">
+          {agent.versions.map((version) => (
+            <li key={version.id} className="py-2.5 flex items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">{v.version}</span>
-                  {v.is_current && <Badge tone="green">current</Badge>}
-                  {v.approved_at && <Badge tone="muted">approved</Badge>}
+                  <span className="font-mono text-sm">{version.version}</span>
+                  {version.is_current && <Badge tone="green">current</Badge>}
+                  {version.approved_at && <Badge tone="muted">approved</Badge>}
+                  <Badge tone="blue">{version.descriptor_format}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{v.image_tag}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{version.image_tag}</p>
               </div>
               <span className="text-xs text-muted-foreground">
-                {new Date(v.created_at).toLocaleString()}
+                {new Date(version.created_at).toLocaleString()}
               </span>
             </li>
           ))}
         </ul>
       </Card>
+
+      {agent.installation && (
+        <InstallationReadinessCard
+          ready={agent.installation.ready}
+          missingWorkspaceConnections={agent.installation.missing_workspace_connections}
+          missingUserConnections={agent.installation.missing_user_connections}
+          disabledRequiredModules={agent.installation.disabled_required_modules}
+        />
+      )}
+
+      <ModuleActivationCard
+        modules={agent.modules}
+        enabledModules={agent.installation?.enabled_modules ?? []}
+        editable={false}
+      />
 
       <ScheduleManager slug={params.slug} />
 
@@ -109,23 +131,23 @@ export default function DevAgentDetail() {
             <p className="text-sm text-muted-foreground">No feedback yet.</p>
           ) : (
             <ul className="divide-y divide-border">
-              {feedback.items.slice(0, 10).map((f) => (
-                <li key={f.feedback_id} className="py-2.5 space-y-1">
+              {feedback.items.slice(0, 10).map((item) => (
+                <li key={item.feedback_id} className="py-2.5 space-y-1">
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span>{f.rating === "up" ? "👍" : "👎"}</span>
+                    <span>{item.rating === "up" ? "👍" : "👎"}</span>
                     <Link
-                      href={`/app/runs/${f.run_id}`}
+                      href={`/app/runs/${item.run_id}`}
                       className="font-mono text-xs hover:underline"
                     >
-                      run {f.run_id.slice(0, 8)}…
+                      run {item.run_id.slice(0, 8)}...
                     </Link>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(f.created_at).toLocaleString()}
+                      {new Date(item.created_at).toLocaleString()}
                     </span>
                   </div>
-                  {f.comment && (
+                  {item.comment && (
                     <p className="text-sm text-muted-foreground whitespace-pre-line ml-6">
-                      {f.comment}
+                      {item.comment}
                     </p>
                   )}
                 </li>
@@ -141,14 +163,14 @@ export default function DevAgentDetail() {
           <p className="text-sm text-muted-foreground">No runs yet.</p>
         ) : (
           <ul className="divide-y divide-border">
-            {runs.map((r) => (
-              <li key={r.id} className="py-2.5 flex items-center justify-between gap-3">
-                <Link href={`/app/runs/${r.id}`} className="text-sm font-mono hover:underline">
-                  {r.id.slice(0, 8)}…
+            {runs.map((run) => (
+              <li key={run.id} className="py-2.5 flex items-center justify-between gap-3">
+                <Link href={`/app/runs/${run.id}`} className="text-sm font-mono hover:underline">
+                  {run.id.slice(0, 8)}...
                 </Link>
-                <RunStatusBadge status={r.status} />
+                <RunStatusBadge status={run.status} />
                 <span className="text-xs text-muted-foreground">
-                  {r.started_at ? new Date(r.started_at).toLocaleString() : "—"}
+                  {run.started_at ? new Date(run.started_at).toLocaleString() : "—"}
                 </span>
               </li>
             ))}

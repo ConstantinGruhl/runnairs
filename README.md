@@ -167,9 +167,13 @@ inside an agent container fail; `tool-gateway:8001/health` works.
 pip install -e packages/platform_cli
 platform-cli login --email dev@demo.local --api-url http://localhost:8000
 platform-cli init my-agent
-# edit my-agent/agent.yaml + my-agent/main.py
+# edit my-agent/automation.yaml + my-agent/main.py
 platform-cli deploy ./my-agent
 ```
+
+`platform-cli init` now creates a native automation starter with
+`automation.yaml`, `AI_INSTRUCTIONS.md`, and `tests/test_agent.py`.
+Use `agent.yaml` only when maintaining an older compatibility package.
 
 `deploy` zips the directory, uploads to `POST /dev/agents/deploy`, and the
 control plane validates the manifest, builds an image tagged
@@ -241,3 +245,6 @@ directory. `scripts/sync-agent-skill.sh` re-syncs after edits.
 
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired today.
+- Self-hosting guidance is intentionally light for now; see
+  [docs/self-hosting.md](docs/self-hosting.md) for the supported stack
+  split and the production compose overlay.

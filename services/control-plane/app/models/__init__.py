@@ -7,6 +7,8 @@ from app.models.run import Approval, ApprovalStatus, Run, RunStatus, RunTrigger
 from app.models.audit_log import AuditLog
 from app.models.feedback import Feedback, FeedbackRating
 from app.models.schedule import Schedule
+from app.models.connection import Connection, ConnectionScope, ConnectionStatus
+from app.models.installation import AutomationInstallation, InstallationStatus
 
 __all__ = [
     "Base",
@@ -28,4 +30,9 @@ __all__ = [
     "Feedback",
     "FeedbackRating",
     "Schedule",
+    "Connection",
+    "ConnectionScope",
+    "ConnectionStatus",
+    "AutomationInstallation",
+    "InstallationStatus",
 ]

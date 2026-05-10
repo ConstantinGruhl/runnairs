@@ -45,6 +45,25 @@ class _Context:
             raise RuntimeError("RUN_INPUTS must be a JSON object")
         return value
 
+    def _installation_state(self) -> dict[str, Any]:
+        raw = os.environ.get("RUN_INSTALLATION_STATE", "{}")
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"RUN_INSTALLATION_STATE is not valid JSON: {e}") from e
+        if not isinstance(value, dict):
+            raise RuntimeError("RUN_INSTALLATION_STATE must be a JSON object")
+        return value
+
+    def module_enabled(self, module_id: str) -> bool:
+        return module_id in set(self._installation_state().get("enabled_modules", []))
+
+    def connection(self, key: str) -> dict[str, Any] | None:
+        return (self._installation_state().get("connections", {})).get(key)
+
+    def installation_config(self) -> dict[str, Any]:
+        return dict(self._installation_state().get("config", {}))
+
     def log(self, message: str, level: str = "info") -> None:
         """Emit a structured-ish log line. Captured by the worker."""
         sys.stdout.write(f"[agent:{level}] {message}\n")

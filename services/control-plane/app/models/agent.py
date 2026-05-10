@@ -55,6 +55,9 @@ class AgentVersion(Base):
     )
     version: Mapped[str] = mapped_column(String(64), nullable=False)
     manifest_json: Mapped[dict[str, Any]] = jsonb_col()
+    descriptor_format: Mapped[str] = mapped_column(String(32), nullable=False, default="legacy_agent")
+    compatibility_version: Mapped[str] = mapped_column(String(32), nullable=False, default="runtime_api:v1")
+    inspection_json: Mapped[dict[str, Any] | None] = jsonb_col(nullable=True)
     code_archive_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     image_tag: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(

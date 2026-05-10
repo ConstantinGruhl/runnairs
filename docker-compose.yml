@@ -75,6 +75,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-devsecret}
       PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
       TOOL_GATEWAY_URL: http://tool-gateway:8001
+      PLATFORM_RUNTIME_MODE: ${PLATFORM_RUNTIME_MODE:-docker-socket}
+      DEMO_DEPENDENCIES_ENABLED: ${DEMO_DEPENDENCIES_ENABLED:-true}
     ports:
       - "8000:8000"
     volumes:
@@ -155,7 +157,7 @@ services:
     build:
       context: ./frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     depends_on:
