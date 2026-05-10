@@ -26,6 +26,31 @@ class InstallationReadiness:
     disabled_required_modules: list[str]
 
 
+class InstallationNotReadyError(Exception):
+    """Raised when an automation installation is not ready for the requested trigger."""
+
+
+def ensure_installation_ready(summary: dict[str, Any], *, trigger_label: str) -> None:
+    reasons: list[str] = []
+    if summary.get("missing_workspace_connections"):
+        reasons.append(
+            "missing workspace connections: "
+            + ", ".join(summary["missing_workspace_connections"])
+        )
+    if summary.get("missing_user_connections"):
+        reasons.append(
+            "missing user connections: "
+            + ", ".join(summary["missing_user_connections"])
+        )
+    if summary.get("disabled_required_modules"):
+        reasons.append(
+            "disabled required modules: "
+            + ", ".join(summary["disabled_required_modules"])
+        )
+    if reasons:
+        raise InstallationNotReadyError(f"{trigger_label} blocked: " + "; ".join(reasons))
+
+
 def compute_installation_readiness(
     *,
     descriptor: dict[str, Any],

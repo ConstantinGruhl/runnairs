@@ -105,12 +105,10 @@ def start_run(payload: RunStartRequest, actor: CurrentUser, db: DbSession) -> Ru
             user_id=actor.id,
         ),
     )
-    if summary["disabled_required_modules"]:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "required modules are disabled: "
-            + ", ".join(summary["disabled_required_modules"]),
-        )
+    try:
+        installations_service.ensure_installation_ready(summary, trigger_label="manual run")
+    except installations_service.InstallationNotReadyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     run = Run(
         agent_id=agent.id,

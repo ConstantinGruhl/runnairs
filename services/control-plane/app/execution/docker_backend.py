@@ -64,6 +64,26 @@ class DockerExecutionBackend(ExecutionBackend):
             installation = db.execute(
                 select(AutomationInstallation).where(AutomationInstallation.agent_id == run.agent_id)
             ).scalar_one_or_none()
+            summary = installations_service.build_installation_summary(
+                descriptor=manifest,
+                installation=installation,
+                available_workspace_connections=installations_service.available_workspace_connection_keys(
+                    db,
+                    tenant_id=tenant_id,
+                ),
+                available_user_connections=installations_service.available_user_connection_keys(
+                    db,
+                    tenant_id=tenant_id,
+                    user_id=run.triggering_user_id,
+                ),
+            )
+            try:
+                installations_service.ensure_installation_ready(
+                    summary,
+                    trigger_label="run execution",
+                )
+            except installations_service.InstallationNotReadyError as exc:
+                return self._fail(run_id, str(exc))
             installation_state = {
                 "enabled_modules": installations_service.enabled_modules_for_installation(
                     manifest,

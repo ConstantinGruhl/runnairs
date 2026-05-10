@@ -77,13 +77,13 @@ def tick() -> int:
                     ),
                     available_user_connections=set(),
                 )
-                if summary["disabled_required_modules"]:
-                    logger.warning(
-                        "schedule %s skipped: required modules disabled for agent %s (%s)",
-                        sched.id,
-                        agent.slug,
-                        ",".join(summary["disabled_required_modules"]),
+                try:
+                    installations_service.ensure_installation_ready(
+                        summary,
+                        trigger_label="scheduled run",
                     )
+                except installations_service.InstallationNotReadyError as exc:
+                    logger.warning("schedule %s skipped for agent %s: %s", sched.id, agent.slug, exc)
                     sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
                     db.commit()
                     continue

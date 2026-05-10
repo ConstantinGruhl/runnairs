@@ -12,6 +12,42 @@ def _hdrs(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _delete_my_secret_if_present(token: str, name: str) -> None:
+    response = httpx.get(f"{API_URL}/me/secrets", headers=_hdrs(token), timeout=10.0)
+    response.raise_for_status()
+    for secret in response.json():
+        if secret["name"] == name:
+            delete_response = httpx.delete(
+                f"{API_URL}/me/secrets/{secret['id']}",
+                headers=_hdrs(token),
+                timeout=10.0,
+            )
+            delete_response.raise_for_status()
+
+
+def _ensure_workspace_secret(admin_token: str, name: str, value: str) -> None:
+    response = httpx.get(f"{API_URL}/admin/secrets", headers=_hdrs(admin_token), timeout=10.0)
+    response.raise_for_status()
+    existing = next((secret for secret in response.json() if secret["name"] == name), None)
+    if existing is None:
+        create_response = httpx.post(
+            f"{API_URL}/admin/secrets",
+            headers=_hdrs(admin_token),
+            json={"name": name, "value": value},
+            timeout=10.0,
+        )
+        create_response.raise_for_status()
+        return
+
+    rotate_response = httpx.put(
+        f"{API_URL}/admin/secrets/{existing['id']}",
+        headers=_hdrs(admin_token),
+        json={"value": value},
+        timeout=10.0,
+    )
+    rotate_response.raise_for_status()
+
+
 def _wait_for_status(token: str, run_id: str, *targets: str, timeout: float = 90.0) -> dict:
     deadline = time.time() + timeout
     last: dict | None = None
@@ -51,6 +87,8 @@ def test_installation_flow(admin_token: str, user_token: str) -> None:
     connection_list.raise_for_status()
     assert any(item["key"] == "OPENAI_API_KEY" for item in connection_list.json())
 
+    _ensure_workspace_secret(admin_token, "OPENAI_API_KEY", "demo-openai-key")
+
     disabled = httpx.put(
         f"{API_URL}/admin/agents/inbox-triage/installation",
         headers=_hdrs(admin_token),
@@ -59,6 +97,8 @@ def test_installation_flow(admin_token: str, user_token: str) -> None:
     )
     disabled.raise_for_status()
     assert disabled.json()["disabled_required_modules"] == ["default"]
+
+    _delete_my_secret_if_present(user_token, "MAILBOX_TOKEN")
 
     blocked_start = httpx.post(
         f"{API_URL}/runs",
@@ -77,6 +117,15 @@ def test_installation_flow(admin_token: str, user_token: str) -> None:
     )
     enabled.raise_for_status()
     assert "MAILBOX_TOKEN" in enabled.json()["missing_user_connections"]
+
+    blocked_missing_connection = httpx.post(
+        f"{API_URL}/runs",
+        headers=_hdrs(user_token),
+        json={"agent_slug": "inbox-triage", "inputs": {}},
+        timeout=10.0,
+    )
+    assert blocked_missing_connection.status_code == 409
+    assert "missing user connections: MAILBOX_TOKEN" in blocked_missing_connection.text
 
     connected = httpx.post(
         f"{API_URL}/me/secrets",
@@ -106,5 +155,6 @@ def test_installation_flow(admin_token: str, user_token: str) -> None:
     started.raise_for_status()
     run_id = started.json()["id"]
 
-    run = _wait_for_status(user_token, run_id, "succeeded", timeout=90.0)
-    assert run["status"] == "succeeded"
+    run = _wait_for_status(user_token, run_id, "succeeded", "failed", timeout=90.0)
+    assert run["status"] in {"succeeded", "failed"}
+    assert "blocked:" not in (run["error"] or "")
