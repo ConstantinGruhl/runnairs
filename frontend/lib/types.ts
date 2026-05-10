@@ -105,3 +105,29 @@ export interface Approval {
   decided_at: string | null;
   created_at: string;
 }
+
+export interface RunFeedback {
+  id: string;
+  run_id: string;
+  user_id: string;
+  rating: "up" | "down";
+  comment: string | null;
+  created_at: string;
+}
+
+export interface AgentFeedbackEntry {
+  feedback_id: string;
+  run_id: string;
+  rating: "up" | "down";
+  comment: string | null;
+  created_at: string;
+  user_id: string;
+}
+
+export interface AgentFeedbackSummary {
+  agent_slug: string;
+  up_count: number;
+  down_count: number;
+  total_runs_with_feedback: number;
+  items: AgentFeedbackEntry[];
+}

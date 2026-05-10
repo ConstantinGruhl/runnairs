@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { isTerminalStatus, RunStatusBadge } from "@/components/RunStatus";
 import { Badge, Button, Card } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -194,12 +195,7 @@ export default function RunDetailPage() {
         </Card>
       )}
 
-      <Card>
-        <h2 className="text-base font-medium mb-2">Feedback</h2>
-        <p className="text-sm text-muted-foreground">
-          Thumbs up/down + comment land in Phase 9.
-        </p>
-      </Card>
+      {isTerminalStatus(run.status) && <FeedbackWidget runId={run.id} />}
 
       <Card className="text-xs text-muted-foreground space-y-1">
         <div>started: {run.started_at ? new Date(run.started_at).toLocaleString() : "—"}</div>

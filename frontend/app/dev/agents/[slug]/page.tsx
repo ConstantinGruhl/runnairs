@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { RunStatusBadge } from "@/components/RunStatus";
 import { Badge, Card } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import type { Run } from "@/lib/types";
+import type { AgentFeedbackSummary, Run } from "@/lib/types";
 
 interface AgentVersion {
   id: string;
@@ -32,6 +32,7 @@ export default function DevAgentDetail() {
   const params = useParams<{ slug: string }>();
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [feedback, setFeedback] = useState<AgentFeedbackSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,6 +42,9 @@ export default function DevAgentDetail() {
     apiFetch<Run[]>(`/runs?agent_slug=${params.slug}&limit=20`)
       .then(setRuns)
       .catch(() => setRuns([]));
+    apiFetch<AgentFeedbackSummary>(`/dev/agents/${params.slug}/feedback`)
+      .then(setFeedback)
+      .catch(() => setFeedback(null));
   }, [params.slug]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
@@ -84,6 +88,49 @@ export default function DevAgentDetail() {
           ))}
         </ul>
       </Card>
+
+      {feedback && (
+        <Card className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-medium">Feedback</h2>
+            <div className="flex gap-3 text-sm">
+              <span className="text-green-700">👍 {feedback.up_count}</span>
+              <span className="text-red-700">👎 {feedback.down_count}</span>
+              <span className="text-muted-foreground">
+                {feedback.total_runs_with_feedback}{" "}
+                {feedback.total_runs_with_feedback === 1 ? "run" : "runs"} rated
+              </span>
+            </div>
+          </div>
+          {feedback.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No feedback yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {feedback.items.slice(0, 10).map((f) => (
+                <li key={f.feedback_id} className="py-2.5 space-y-1">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span>{f.rating === "up" ? "👍" : "👎"}</span>
+                    <Link
+                      href={`/app/runs/${f.run_id}`}
+                      className="font-mono text-xs hover:underline"
+                    >
+                      run {f.run_id.slice(0, 8)}…
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(f.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  {f.comment && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-line ml-6">
+                      {f.comment}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Card>
         <h2 className="text-base font-medium mb-3">Recent runs ({runs.length})</h2>
