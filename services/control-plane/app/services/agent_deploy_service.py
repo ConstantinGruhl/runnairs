@@ -8,9 +8,7 @@ the AgentVersion row.
 from __future__ import annotations
 
 import io
-import importlib
 import logging
-import sys
 import tempfile
 import uuid
 import zipfile
@@ -25,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Agent, AgentStatus, AgentVersion
 from app.services.package_descriptor import load_package_descriptor
+from app.services.package_inspection import InspectionError, inspect_image_package
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +64,6 @@ def deploy(
 
         manifest = descriptor.data
         slug = manifest["name"]
-        try:
-            inspection = inspect_package(tmp, manifest["entrypoint"])
-            validate_descriptor_against_inspection(manifest, inspection)
-        except ValueError as e:
-            raise DeployError(str(e)) from e
 
         agent = _upsert_agent(db, tenant_id=tenant_id, slug=slug, manifest=manifest, created_by=created_by)
         version = _next_version(db, agent.id)
@@ -77,6 +71,13 @@ def deploy(
 
         _write_dockerfile(tmp)
         _build_image(tmp, image_tag)
+
+        try:
+            inspection = inspect_image_package(image_tag=image_tag, entrypoint=manifest["entrypoint"])
+            validate_descriptor_against_inspection(manifest, inspection)
+        except (InspectionError, ValueError) as e:
+            _remove_image_if_present(image_tag)
+            raise DeployError(str(e)) from e
 
         version_row = AgentVersion(
             agent_id=agent.id,
@@ -112,48 +113,6 @@ def _safe_extract(archive_bytes: bytes, target: Path) -> None:
             zf.extractall(target)
     except zipfile.BadZipFile as e:
         raise DeployError(f"archive is not a valid zip file: {e}") from e
-
-
-def inspect_package(root: Path, entrypoint: str) -> dict[str, Any]:
-    module_name, function_name = entrypoint.split(":", 1)
-    sys_path_added = False
-    importlib.invalidate_caches()
-    original_module = sys.modules.pop(module_name, None)
-    try:
-        sys.path.insert(0, str(root))
-        sys_path_added = True
-        module = importlib.import_module(module_name)
-    finally:
-        if sys_path_added and sys.path and sys.path[0] == str(root):
-            sys.path.pop(0)
-        if original_module is not None:
-            sys.modules[module_name] = original_module
-        else:
-            sys.modules.pop(module_name, None)
-
-    if not hasattr(module, function_name):
-        raise ValueError(f"entrypoint {entrypoint!r} is missing")
-
-    meta = getattr(module, "AUTOMATION_META", {})
-    if meta and not isinstance(meta, dict):
-        raise ValueError("AUTOMATION_META must be a mapping when provided")
-
-    module_specs = meta.get("modules", []) if isinstance(meta, dict) else []
-    modules = [
-        module_spec["id"]
-        for module_spec in module_specs
-        if isinstance(module_spec, dict) and module_spec.get("id")
-    ]
-    if not modules:
-        modules = ["default"]
-
-    return {
-        "runtime_api": meta.get("runtime_api", "v1") if isinstance(meta, dict) else "v1",
-        "modules": modules,
-        "triggers": list(meta.get("triggers", ["manual"])) if isinstance(meta, dict) else ["manual"],
-        "channels": list(meta.get("channels", [])) if isinstance(meta, dict) else [],
-        "entrypoint": entrypoint,
-    }
 
 
 def validate_descriptor_against_inspection(descriptor: dict[str, Any], inspection: dict[str, Any]) -> None:
@@ -242,3 +201,10 @@ def _build_image(context: Path, tag: str) -> None:
         raise DeployError(f"image build failed: {e.msg}") from e
     except DockerException as e:
         raise DeployError(f"docker error during build: {e}") from e
+
+
+def _remove_image_if_present(tag: str) -> None:
+    try:
+        docker.from_env().images.remove(tag, force=True)
+    except Exception:
+        logger.warning("failed to remove inspection image %s after deploy validation failure", tag)

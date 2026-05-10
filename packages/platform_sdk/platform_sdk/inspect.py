@@ -44,14 +44,22 @@ def inspect_package(path: str | Path, entrypoint: str | None = None) -> dict[str
     }
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
-        raise SystemExit("usage: python -m platform_sdk.inspect <path> [entrypoint]")
+        print("usage: python -m platform_sdk.inspect <path> [entrypoint]", file=sys.stderr)
+        return 2
 
     path = Path(args[0])
     entrypoint = args[1] if len(args) > 1 else None
-    print(json.dumps(inspect_package(path, entrypoint=entrypoint), indent=2, sort_keys=True))
+    try:
+        payload = inspect_package(path, entrypoint=entrypoint)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
 
 
 def _entrypoint_from_manifest(root: Path) -> str:
@@ -67,4 +75,4 @@ def _entrypoint_from_manifest(root: Path) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
