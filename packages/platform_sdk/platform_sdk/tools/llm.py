@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from platform_sdk._client import post
+from platform_sdk import _client
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ def complete(
     if system is not None:
         payload["system"] = system
 
-    body = post("/tools/llm/complete", payload)
+    body = _client.post("/tools/llm/complete", payload)
     return LlmCompletion(
         text=body["text"],
         model=body["model"],

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from platform_sdk._client import post
+from platform_sdk import _client
 
 
 @dataclass(frozen=True)
@@ -20,5 +20,5 @@ def send(*, to: str, subject: str, body: str, sender: str | None = None) -> Send
     payload: dict[str, object] = {"to": to, "subject": subject, "body": body}
     if sender is not None:
         payload["sender"] = sender
-    res = post("/tools/email/send", payload)
+    res = _client.post("/tools/email/send", payload)
     return SendResult(ok=bool(res.get("ok")), backend=str(res.get("backend", "")))

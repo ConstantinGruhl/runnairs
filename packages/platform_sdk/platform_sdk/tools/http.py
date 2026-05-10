@@ -14,7 +14,7 @@ import json as _json
 from dataclasses import dataclass
 from typing import Any
 
-from platform_sdk._client import post as _gateway_post
+from platform_sdk import _client
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ def request(
         payload["json"] = json
     if body is not None:
         payload["body"] = body
-    res = _gateway_post("/tools/http/request", payload)
+    res = _client.post("/tools/http/request", payload)
     return HttpResponse(
         status_code=int(res["status_code"]),
         headers=dict(res.get("headers", {})),

@@ -18,7 +18,7 @@ This is a local prototype built in phases. The current phase is recorded below.
 - [x] **Phase 8** — Remaining tools + sample agents
 - [x] **Phase 9** — Feedback loop
 - [x] **Phase 10** — Scheduling
-- [ ] **Phase 11** — Platform skill + tests
+- [x] **Phase 11** — Platform skill + tests
 - [ ] **Phase 12** — README + demo script
 
 ## Quickstart (Phase 0)
@@ -214,8 +214,30 @@ declares one (e.g. `inbox-triage`), click Connect under the new
 **Connect your accounts** card, paste a token. Run history shows the
 explicit failure mode if a user runs without connecting first.
 
-## Known limitations (will resolve in later phases)
+## Tests + the platform skill
+
+Two layers:
+
+```bash
+./scripts/run-tests.sh
+```
+
+- **Agent unit tests** under `examples/<slug>/tests/test_agent.py` use
+  `platform_sdk.testing.MockGateway` to stub every gateway call. They
+  run in milliseconds, no compose required.
+- **Integration test** at `tests/integration/test_happy_path.py` walks
+  the §16 demo flow against a running compose stack: `weekly-summary`
+  → `awaiting_approval` → admin approves → email lands in MailHog →
+  feedback flows to the dev dashboard. Plus `inbox-triage` failing
+  cleanly without a connected `MAILBOX_TOKEN`.
+
+The canonical agent-author guide is
+[skills/platform-agent/SKILL.md](skills/platform-agent/SKILL.md). It
+ships into each `examples/<slug>/.claude/skills/platform-agent/` so
+Claude Code loads it automatically when invoked inside an agent
+directory. `scripts/sync-agent-skill.sh` re-syncs after edits.
+
+## Known limitations
 
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired today.
-- Cron-based scheduling lands in Phase 10.

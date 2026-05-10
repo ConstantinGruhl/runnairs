@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from platform_sdk._client import post
+from platform_sdk import _client
 
 
 def query(sql: str, params: dict[str, Any] | list[Any] | None = None) -> list[dict[str, Any]]:
-    res = post("/tools/postgres/query", {"query": sql, "params": params})
+    res = _client.post("/tools/postgres/query", {"query": sql, "params": params})
     return list(res.get("rows", []))

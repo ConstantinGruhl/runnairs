@@ -14,7 +14,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from platform_sdk._client import GatewayError, post
+from platform_sdk import _client
+from platform_sdk._client import GatewayError
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,7 @@ class _Context:
         "email.send"). After approval, that tool can be called and the
         gateway will accept it.
         """
-        created = post(
+        created = _client.post(
             "/approvals",
             {
                 "action": action,
@@ -79,7 +80,7 @@ class _Context:
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
             try:
-                result = post(
+                result = _client.post(
                     f"/approvals/{approval_id}/wait",
                     {},
                     timeout=90.0,
