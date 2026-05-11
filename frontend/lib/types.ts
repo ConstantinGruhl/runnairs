@@ -1,4 +1,5 @@
 export type UserRole = "admin" | "developer" | "user";
+export type UserStatus = "active" | "disabled";
 
 export interface UserPublic {
   id: string;
@@ -13,6 +14,14 @@ export interface TokenResponse {
   user: UserPublic;
 }
 
+export interface BootstrapGuidanceItem {
+  key: string;
+  category: string;
+  title: string;
+  body: string;
+  action: string;
+}
+
 export interface BootstrapState {
   bootstrap_required: boolean;
   completed: boolean;
@@ -24,8 +33,10 @@ export interface BootstrapState {
   tenant_name: string | null;
   notification_from_email: string | null;
   auth_mode: string | null;
+  supported_auth_modes: string[];
   ready_for_completion: boolean;
   blocking_reasons: string[];
+  operator_guidance: BootstrapGuidanceItem[];
   checks: {
     jwt_secret_valid: boolean;
     platform_secrets_key_configured: boolean;
@@ -34,7 +45,24 @@ export interface BootstrapState {
 }
 
 export interface BootstrapInitializeResponse extends TokenResponse {
+  bootstrap_recovery_code: string | null;
   state: BootstrapState;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  must_reset_password: boolean;
+  password_changed_at: string;
+  created_at: string;
+}
+
+export interface OneTimeCodeResponse {
+  code: string;
+  expires_at: string | null;
+  kind: string;
 }
 
 export interface WorkspaceSecret {

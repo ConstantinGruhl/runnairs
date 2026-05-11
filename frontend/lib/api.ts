@@ -1,4 +1,4 @@
-import { clearSession, getToken } from "./auth";
+import { clearSession } from "./auth";
 
 function buildApiUrl(path: string): string {
   const normalized = path.startsWith("/") ? path.slice(1) : path;
@@ -20,17 +20,17 @@ export async function apiFetch<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  const token = getToken();
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(buildApiUrl(path), { ...init, headers });
+  const res = await fetch(buildApiUrl(path), {
+    ...init,
+    headers,
+    credentials: init.credentials ?? "same-origin",
+  });
 
-  if (res.status === 401 && token) {
+  if (res.status === 401) {
     clearSession();
   }
 

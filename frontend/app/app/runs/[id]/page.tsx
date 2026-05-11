@@ -8,7 +8,7 @@ import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { isTerminalStatus, RunStatusBadge } from "@/components/RunStatus";
 import { Badge, Button, Card } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { getUser, refreshCurrentUser } from "@/lib/auth";
 import type { Approval, Run } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 2000;
@@ -18,11 +18,13 @@ export default function RunDetailPage() {
   const [run, setRun] = useState<Run | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState(() => getUser());
   const stoppedRef = useRef(false);
-  const isAdmin = getUser()?.role === "admin";
+  const isAdmin = currentUser?.role === "admin";
 
   useEffect(() => {
     stoppedRef.current = false;
+    void refreshCurrentUser().then(setCurrentUser).catch(() => undefined);
 
     async function tick() {
       if (stoppedRef.current) return;

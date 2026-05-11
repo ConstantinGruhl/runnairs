@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { getUser, landingForRole } from "@/lib/auth";
+import { getUser, landingForRole, refreshCurrentUser } from "@/lib/auth";
 import { fetchBootstrapState } from "@/lib/bootstrap";
 
 export default function Home() {
@@ -24,7 +24,7 @@ export default function Home() {
         // Fall through to the existing local session redirect if the API is not reachable yet.
       }
 
-      const user = getUser();
+      const user = await refreshCurrentUser().catch(() => getUser());
       router.replace(user ? landingForRole(user.role) : "/login");
     }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { clearSession, getUser, landingForRole } from "@/lib/auth";
+import { getUser, landingForRole, logoutSession, refreshCurrentUser } from "@/lib/auth";
 import { fetchBootstrapState } from "@/lib/bootstrap";
 import type { UserPublic, UserRole } from "@/lib/types";
 
@@ -32,7 +32,7 @@ export function RoleGuard({
         // Fall back to the current local session behavior if the bootstrap API is unavailable.
       }
 
-      const u = getUser();
+      const u = await refreshCurrentUser().catch(() => getUser());
       if (!u) {
         router.replace("/login");
         return;
@@ -66,6 +66,7 @@ export function RoleGuard({
 }
 
 export function logout(router: ReturnType<typeof useRouter>): void {
-  clearSession();
-  router.replace("/login");
+  void logoutSession().finally(() => {
+    router.replace("/login");
+  });
 }

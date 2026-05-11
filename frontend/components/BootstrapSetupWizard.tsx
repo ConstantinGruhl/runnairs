@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError, apiFetch } from "@/lib/api";
-import { getUser, landingForRole, setSession } from "@/lib/auth";
 import { fetchBootstrapState } from "@/lib/bootstrap";
+import { getUser, landingForRole, refreshCurrentUser, setSession } from "@/lib/auth";
 import type {
   BootstrapInitializeResponse,
   BootstrapState,
@@ -42,9 +42,10 @@ export function BootstrapSetupWizard() {
   const [notificationFromEmail, setNotificationFromEmail] = useState("");
   const [resumeEmail, setResumeEmail] = useState("");
   const [resumePassword, setResumePassword] = useState("");
+  const [authMode, setAuthMode] = useState("built_in");
+  const [bootstrapRecoveryCode, setBootstrapRecoveryCode] = useState<string | null>(null);
 
   useEffect(() => {
-    setCurrentUser(getUser());
     void refreshState();
   }, []);
 
@@ -53,14 +54,16 @@ export function BootstrapSetupWizard() {
     setError(null);
     try {
       const state = await fetchBootstrapState();
+      const user = await refreshCurrentUser().catch(() => getUser());
+
       setBootstrapState(state);
+      setCurrentUser(user);
       setTenantName(state.tenant_name || "My Workspace");
       setAdminEmail(state.instance_admin_email || "");
       setNotificationFromEmail(state.notification_from_email || "");
       setResumeEmail(state.instance_admin_email || "");
+      setAuthMode(state.auth_mode || state.supported_auth_modes[0] || "built_in");
 
-      const user = getUser();
-      setCurrentUser(user);
       if (state.completed) {
         router.replace(user ? landingForRole(user.role) : "/login");
         return;
@@ -77,6 +80,7 @@ export function BootstrapSetupWizard() {
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+
     try {
       const response = await apiFetch<BootstrapInitializeResponse>("/bootstrap/initialize", {
         method: "POST",
@@ -85,12 +89,16 @@ export function BootstrapSetupWizard() {
           admin_email: adminEmail,
           admin_password: adminPassword,
           notification_from_email: notificationFromEmail,
+          auth_mode: authMode,
         }),
       });
       setSession(response.access_token, response.user);
       setCurrentUser(response.user);
       setBootstrapState(response.state);
-      setSuccess("Bootstrap admin created. Finish the checks below to unlock the platform.");
+      setBootstrapRecoveryCode(response.bootstrap_recovery_code);
+      setSuccess(
+        "Bootstrap admin created. Store the recovery code below, then finish the remaining checks to unlock the platform.",
+      );
       setAdminPassword("");
     } catch (nextError) {
       setError(detailFromError(nextError));
@@ -104,6 +112,7 @@ export function BootstrapSetupWizard() {
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+
     try {
       const response = await apiFetch<TokenResponse>("/auth/login", {
         method: "POST",
@@ -127,6 +136,7 @@ export function BootstrapSetupWizard() {
       body: JSON.stringify({
         tenant_name: tenantName,
         notification_from_email: notificationFromEmail,
+        auth_mode: authMode,
       }),
     });
     setBootstrapState(state);
@@ -137,14 +147,16 @@ export function BootstrapSetupWizard() {
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+
     try {
       await handleSaveConfiguration();
       const state = await apiFetch<BootstrapState>("/bootstrap/complete", {
         method: "POST",
       });
+      const user = currentUser || (await refreshCurrentUser().catch(() => getUser()));
       setBootstrapState(state);
+      setCurrentUser(user);
       setSuccess("Setup complete. Redirecting to the platform.");
-      const user = getUser();
       router.replace(user ? landingForRole(user.role) : "/login");
     } catch (nextError) {
       setError(detailFromError(nextError));
@@ -156,10 +168,17 @@ export function BootstrapSetupWizard() {
   if (loading || bootstrapState === null) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
-        Loading…
+        Loading...
       </div>
     );
   }
+
+  const runtimeGuidance = bootstrapState.operator_guidance.filter(
+    (item) => item.category === "runtime",
+  );
+  const setupGuidance = bootstrapState.operator_guidance.filter(
+    (item) => item.category !== "runtime",
+  );
 
   return (
     <div className="min-h-screen bg-muted/30 px-4 py-10">
@@ -172,20 +191,28 @@ export function BootstrapSetupWizard() {
             </Badge>
           </div>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            This instance stays in configure mode until the first admin, required instance
-            settings, and runtime safety checks are all complete.
+            This instance stays in configure mode until the first admin, the built-in IAM mode,
+            required instance settings, and runtime safety checks are all complete.
           </p>
         </div>
 
-        {error && (
-          <Card className="border-red-200 bg-red-50 text-sm text-red-700">
-            {error}
-          </Card>
-        )}
+        {error && <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>}
+        {success && <Card className="border-green-200 bg-green-50 text-sm text-green-700">{success}</Card>}
 
-        {success && (
-          <Card className="border-green-200 bg-green-50 text-sm text-green-700">
-            {success}
+        {bootstrapRecoveryCode && (
+          <Card className="space-y-3 border-blue-200 bg-blue-50">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-medium">Bootstrap Recovery Code</h2>
+                <p className="text-sm text-blue-950/80">
+                  Store this offline. It can recover the bootstrap admin from the login screen if the password is lost.
+                </p>
+              </div>
+              <Badge tone="blue">store offline</Badge>
+            </div>
+            <pre className="overflow-x-auto rounded-md border border-blue-200 bg-background px-3 py-2 text-sm font-mono">
+              {bootstrapRecoveryCode}
+            </pre>
           </Card>
         )}
 
@@ -198,10 +225,7 @@ export function BootstrapSetupWizard() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             {Object.entries(bootstrapState.checks).map(([key, ok]) => (
-              <div
-                key={key}
-                className="rounded-md border border-border bg-background p-3 text-sm"
-              >
+              <div key={key} className="rounded-md border border-border bg-background p-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span>{CHECK_LABELS[key as keyof BootstrapState["checks"]]}</span>
                   <Badge tone={ok ? "green" : "red"}>{ok ? "ok" : "blocked"}</Badge>
@@ -216,17 +240,87 @@ export function BootstrapSetupWizard() {
               ))}
             </ul>
           )}
+          {runtimeGuidance.length > 0 && (
+            <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-amber-950">Operator Guidance</h3>
+                <p className="text-sm text-amber-900/80">
+                  These runtime blockers are outside the form itself. Fix them in the deployed environment,
+                  then refresh or save configuration again.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {runtimeGuidance.map((item) => (
+                  <div key={item.key} className="rounded-md border border-amber-300 bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-foreground">{item.title}</p>
+                      <Badge tone="amber">runtime fix required</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
+                    <p className="mt-2 text-sm text-foreground">{item.action}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
+
+        {setupGuidance.length > 0 && bootstrapState.admin_created && (
+          <Card className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-lg font-medium">Next Steps</h2>
+              <p className="text-sm text-muted-foreground">
+                Finish these remaining setup tasks before the platform can unlock.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {setupGuidance.map((item) => (
+                <div key={item.key} className="rounded-md border border-border bg-background p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-foreground">{item.title}</p>
+                    <Badge tone="blue">setup task</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
+                  <p className="mt-2 text-sm text-foreground">{item.action}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {!bootstrapState.admin_created && (
           <Card className="space-y-4">
             <div className="space-y-1">
               <h2 className="text-lg font-medium">Create The First Admin</h2>
               <p className="text-sm text-muted-foreground">
-                This creates the initial workspace tenant and the admin account that will finish
-                setup and unlock the platform.
+                This creates the initial workspace tenant and the admin account that will finish setup and unlock the platform.
               </p>
             </div>
+
+            <div className="rounded-md border border-border bg-muted/20 p-4">
+              <p className="text-sm font-medium">Authentication mode</p>
+              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                <input
+                  type="radio"
+                  name="auth_mode"
+                  checked={authMode === "built_in"}
+                  onChange={() => setAuthMode("built_in")}
+                />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">Built-in IAM</span>
+                    <Badge tone="green">available now</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Local email and password accounts with admin-managed reset codes, cookie sessions, and an offline bootstrap recovery code.
+                  </p>
+                </div>
+              </label>
+              <p className="mt-3 text-xs text-muted-foreground">
+                External IAM and OIDC configuration land in the next production phase. This phase explicitly records built-in IAM as the active mode.
+              </p>
+            </div>
+
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleInitialize}>
               <div className="space-y-2">
                 <Label htmlFor="tenant_name">Workspace name</Label>
@@ -266,10 +360,13 @@ export function BootstrapSetupWizard() {
                   value={adminPassword}
                   onChange={(event) => setAdminPassword(event.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use at least 12 characters with letters and numbers.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Creating admin…" : "Create admin and continue"}
+                  {submitting ? "Creating admin..." : "Create admin and continue"}
                 </Button>
               </div>
             </form>
@@ -281,8 +378,7 @@ export function BootstrapSetupWizard() {
             <div className="space-y-1">
               <h2 className="text-lg font-medium">Resume Setup</h2>
               <p className="text-sm text-muted-foreground">
-                The bootstrap admin already exists. Sign in as that admin to continue configure
-                mode and complete setup.
+                The bootstrap admin already exists. Sign in as that admin to continue configure mode and complete setup.
               </p>
             </div>
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleResumeLogin}>
@@ -308,7 +404,7 @@ export function BootstrapSetupWizard() {
               </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Signing in…" : "Sign in to resume"}
+                  {submitting ? "Signing in..." : "Sign in to resume"}
                 </Button>
               </div>
             </form>
@@ -320,10 +416,23 @@ export function BootstrapSetupWizard() {
             <div className="space-y-1">
               <h2 className="text-lg font-medium">Finalize Instance Configuration</h2>
               <p className="text-sm text-muted-foreground">
-                Update any instance metadata that should ship with the first production-ready
-                configuration, then complete setup when the checks above are all green.
+                Update any instance metadata that should ship with the first production-ready configuration, then complete setup when the checks above are all green.
               </p>
             </div>
+
+            <div className="rounded-md border border-border bg-muted/20 p-4">
+              <p className="text-sm font-medium">Authentication mode</p>
+              <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">Built-in IAM</span>
+                  <Badge tone="green">selected</Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Browser sessions use secure cookies, admins can manage users from the platform, and the login screen supports reset and recovery codes.
+                </p>
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="final_tenant_name">Workspace name</Label>
@@ -345,6 +454,7 @@ export function BootstrapSetupWizard() {
                 />
               </div>
             </div>
+
             <div className="flex flex-wrap gap-3">
               <Button
                 type="button"
@@ -377,7 +487,7 @@ export function BootstrapSetupWizard() {
                   void handleCompleteSetup();
                 }}
               >
-                {submitting ? "Completing setup…" : "Complete setup"}
+                {submitting ? "Completing setup..." : "Complete setup"}
               </Button>
             </div>
           </Card>

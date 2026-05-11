@@ -19,6 +19,7 @@ const FLOW_POINTS = [
 const OPERATIONS_POINTS = [
   "Use the Catalog area to understand what an automation needs before launching it.",
   "Use Admin secrets and connections to satisfy workspace-level requirements like LLM credentials.",
+  "Use Admin users to manage built-in IAM accounts, roles, status, and one-time reset or recovery codes.",
   "Use Developer pages to inspect versions, schedules, installation readiness, and user feedback.",
   "For production, run the compose stack with the production overlay and set strong secrets before first launch.",
 ];
@@ -28,6 +29,7 @@ const SECURITY_POINTS = [
   "The tool gateway authorizes every tool call with a short-lived run token and per-tool permission checks.",
   "Approval-gated actions such as email sends remain blocked until an authorized admin approves them.",
   "Secrets are stored encrypted at rest and should be backed by strong environment secrets in production.",
+  "Browser logins now rely on HttpOnly session cookies, and the bootstrap admin should store the offline recovery code outside the platform.",
 ];
 
 export function PlatformDocs({
@@ -114,8 +116,9 @@ export function PlatformDocs({
         <div>
           <h2 className="text-base font-medium">Current Production Focus</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            The next production milestones are secure first-run setup, pluggable IAM, stronger CI and
-            security testing, Git-backed skill distribution, and operational hardening for self-hosting.
+            The current production baseline includes secure first-run setup and built-in IAM foundations.
+            The next milestones are OIDC, stronger CI and security testing, Git-backed skill distribution,
+            and broader operational hardening for self-hosting.
           </p>
         </div>
       </Card>
