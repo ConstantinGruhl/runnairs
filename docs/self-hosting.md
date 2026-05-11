@@ -16,11 +16,19 @@ Demo-only extras in this repository are:
 - `mock-crm`
 - `sample_data`
 
-Use the production overlay when you want the frontend to talk to the internal control-plane service instead of `localhost`:
+Use the production overlay for the supported self-hosted baseline:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+Minimum production expectations:
+
+- set `APP_ENV=production`
+- set a strong `JWT_SECRET`
+- provide a real `PLATFORM_SECRETS_KEY`
+- terminate TLS at your ingress or reverse proxy
+- keep `INTERNAL_API_URL` pointed at the internal control-plane service for the frontend proxy layer
 
 Operational concerns to handle outside this demo repo:
 

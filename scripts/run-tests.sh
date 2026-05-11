@@ -13,5 +13,8 @@ MSYS_NO_PATHCONV=1 docker run --rm \
     cd /examples/hello-world && PYTHONPATH=. pytest tests/ -q -p no:cacheprovider && \
     cd /examples/weekly-summary && PYTHONPATH=. pytest tests/ -q -p no:cacheprovider"
 
+echo "==> platform unit tests"
+PYTHONPATH="services/control-plane:packages/platform_sdk:packages/platform_cli" python -m pytest tests/unit -q
+
 echo "==> integration happy path"
 python -m pytest tests/integration -q

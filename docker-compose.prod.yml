@@ -1,16 +1,20 @@
 services:
   control-plane:
     environment:
+      APP_ENV: production
       TOOL_GATEWAY_URL: ${TOOL_GATEWAY_URL:-http://tool-gateway:8001}
       PLATFORM_RUNTIME_MODE: ${PLATFORM_RUNTIME_MODE:-docker-socket}
       DEMO_DEPENDENCIES_ENABLED: ${DEMO_DEPENDENCIES_ENABLED:-false}
     restart: unless-stopped
 
   tool-gateway:
+    environment:
+      APP_ENV: production
     restart: unless-stopped
 
   worker:
     environment:
+      APP_ENV: production
       TOOL_GATEWAY_URL: ${TOOL_GATEWAY_URL:-http://tool-gateway:8001}
       AGENT_EGRESS_NETWORK: ${AGENT_EGRESS_NETWORK:-agent-platform_agent-egress}
     restart: unless-stopped
@@ -20,5 +24,5 @@ services:
 
   frontend:
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://control-plane:8000}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://control-plane:8000}
     restart: unless-stopped

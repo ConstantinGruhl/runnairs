@@ -136,4 +136,6 @@ def get_run(run_id: uuid.UUID, actor: CurrentUser, db: DbSession) -> RunPublic:
     agent = db.get(Agent, run.agent_id)
     if agent is None or agent.tenant_id != actor.tenant_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found")
+    if actor.role.value != "admin" and run.triggering_user_id != actor.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "not your run")
     return _to_public(run, agent)

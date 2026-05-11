@@ -73,6 +73,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-devsecret}
+      APP_ENV: ${APP_ENV:-development}
       PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
       TOOL_GATEWAY_URL: http://tool-gateway:8001
       PLATFORM_RUNTIME_MODE: ${PLATFORM_RUNTIME_MODE:-docker-socket}
@@ -98,6 +99,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
       JWT_SECRET: ${JWT_SECRET:-devsecret}
+      APP_ENV: ${APP_ENV:-development}
       PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
       SAMPLE_DB_URL: postgresql+psycopg://${SAMPLE_DB_USER:-sample}:${SAMPLE_DB_PASSWORD:-sample}@sample_data:5432/${SAMPLE_DB_NAME:-sample}
       MAILHOG_HOST: mailhog
@@ -131,6 +133,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-platform}:${POSTGRES_PASSWORD:-platform}@postgres:5432/${POSTGRES_DB:-platform}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-devsecret}
+      APP_ENV: ${APP_ENV:-development}
       PLATFORM_SECRETS_KEY: ${PLATFORM_SECRETS_KEY:-}
       TOOL_GATEWAY_URL: http://tool-gateway:8001
       AGENT_EGRESS_NETWORK: agent-platform_agent-egress
@@ -157,7 +160,7 @@ services:
     build:
       context: ./frontend
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://control-plane:8000}
     ports:
       - "3000:3000"
     depends_on:

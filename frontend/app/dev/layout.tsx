@@ -6,6 +6,7 @@ import { RoleGuard } from "@/components/RoleGuard";
 const NAV = [
   { label: "Agents", href: "/dev" },
   { label: "New Automation", href: "/dev/automations/new" },
+  { label: "Docs", href: "/dev/docs" },
 ];
 
 export default function DevLayout({ children }: { children: React.ReactNode }) {

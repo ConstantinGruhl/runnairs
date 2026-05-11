@@ -3,7 +3,9 @@
 A platform where admins govern, developers build, and end users run AI agents
 with isolated execution, scoped secrets, audited tool calls, and human approvals.
 
-This is a local prototype built in phases. The current phase is recorded below.
+This repository now includes the local prototype plus the first production-readiness hardening pass.
+It is still not a finished production product, but the current stack is easier to launch, safer to
+operate, and documented inside the product itself.
 
 ## Status
 
@@ -32,11 +34,14 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 docker compose up --build
 ```
 
+Open the frontend at <http://localhost:3000>, sign in, and use the new **Docs** tab from the
+sidebar in each role area for an in-app overview of purpose, usage, and security concepts.
+
 When the stack is up:
 
 | Service        | URL                     | Notes                          |
 |----------------|-------------------------|--------------------------------|
-| Frontend       | http://localhost:3000   | Login page only at this phase  |
+| Frontend       | http://localhost:3000   | Admin, developer, user, and docs UI |
 | Control plane  | http://localhost:8000   | `/health` returns `{ok: true}` |
 | Tool gateway   | http://localhost:8001   | `/health` returns `{ok: true}` |
 | Mock CRM       | http://localhost:8080   | `/customers`, `/health`        |
@@ -46,6 +51,23 @@ When the stack is up:
 | Redis          | localhost:6379          | Job queue                      |
 
 `docker compose ps` should show all services healthy.
+
+## Production baseline
+
+Use the production overlay for the supported self-hosted baseline:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Important production notes:
+
+- Set `APP_ENV=production`.
+- Set a strong `JWT_SECRET` before startup. Production mode now rejects default or weak values.
+- The frontend now talks to the backend through a same-origin proxy route, so browsers no longer
+  need to resolve Docker-internal hostnames such as `control-plane`.
+- See [docs/self-hosting.md](docs/self-hosting.md) for the current operator guidance.
+- See [docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md](docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md) for the broader roadmap covering first-run setup, IAM, skill distribution, and security hardening.
 
 ## Repo layout
 
@@ -241,10 +263,18 @@ ships into each `examples/<slug>/.claude/skills/platform-agent/` so
 Claude Code loads it automatically when invoked inside an agent
 directory. `scripts/sync-agent-skill.sh` re-syncs after edits.
 
+Focused verification commands used for the current hardening pass:
+
+```bash
+npm --prefix frontend run build
+PYTHONPATH="services/control-plane:packages/platform_sdk:packages/platform_cli" pytest tests/unit/test_schedule_service.py -q
+```
+
+On Windows PowerShell, set `$env:PYTHONPATH="services/control-plane;packages/platform_sdk;packages/platform_cli"` before running the pytest command.
+
 ## Known limitations
 
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired today.
-- Self-hosting guidance is intentionally light for now; see
-  [docs/self-hosting.md](docs/self-hosting.md) for the supported stack
-  split and the production compose overlay.
+- Local-storage browser tokens remain in use today; a production auth/session redesign is still planned.
+- The first-run configure mode, pluggable IAM, Git-backed skill distribution, and full production security program are planned next rather than finished today.

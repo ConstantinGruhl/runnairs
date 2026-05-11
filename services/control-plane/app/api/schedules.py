@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.core.dependencies import DbSession, require_role
 from app.models import Agent, Schedule, User
+from app.services.schedule_service import ScheduleTimezoneError, next_run_at_utc, resolve_timezone
 
 router = APIRouter(tags=["schedules"])
 
@@ -50,8 +51,11 @@ def _validate_cron(expr: str) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid cron expression: {expr!r}")
 
 
-def _next_at(cron: str, base: datetime) -> datetime:
-    return croniter(cron, base).get_next(datetime)
+def _validate_timezone(timezone_name: str) -> None:
+    try:
+        resolve_timezone(timezone_name)
+    except ScheduleTimezoneError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
 def _to_public(s: Schedule) -> SchedulePublic:
@@ -105,13 +109,14 @@ def create_schedule(
 ) -> SchedulePublic:
     agent = _agent_or_404(db, actor, slug)
     _validate_cron(payload.cron)
+    _validate_timezone(payload.timezone)
     schedule = Schedule(
         agent_id=agent.id,
         cron=payload.cron,
         timezone=payload.timezone,
         enabled=payload.enabled,
         inputs_json=payload.inputs,
-        next_run_at=_next_at(payload.cron, datetime.now(tz=__import__("datetime").timezone.utc)),
+        next_run_at=next_run_at_utc(payload.cron, timezone_name=payload.timezone),
     )
     db.add(schedule)
     db.commit()
@@ -136,11 +141,17 @@ def update_schedule(
     if payload.cron is not None:
         _validate_cron(payload.cron)
         schedule.cron = payload.cron
-        schedule.next_run_at = _next_at(
-            payload.cron, datetime.now(tz=__import__("datetime").timezone.utc)
+        schedule.next_run_at = next_run_at_utc(
+            payload.cron,
+            timezone_name=payload.timezone or schedule.timezone,
         )
     if payload.timezone is not None:
+        _validate_timezone(payload.timezone)
         schedule.timezone = payload.timezone
+        schedule.next_run_at = next_run_at_utc(
+            schedule.cron,
+            timezone_name=schedule.timezone,
+        )
     if payload.enabled is not None:
         schedule.enabled = payload.enabled
     if payload.inputs is not None:

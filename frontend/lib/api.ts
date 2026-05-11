@@ -1,6 +1,9 @@
 import { clearSession, getToken } from "./auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+function buildApiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path.slice(1) : path;
+  return `/api/${normalized}`;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -25,7 +28,7 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  const res = await fetch(buildApiUrl(path), { ...init, headers });
 
   if (res.status === 401 && token) {
     clearSession();

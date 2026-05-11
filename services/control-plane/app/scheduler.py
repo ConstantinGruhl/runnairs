@@ -16,7 +16,6 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from croniter import croniter
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -25,6 +24,7 @@ from app.execution.job_queue import RqJobQueue
 from app.models import Agent, AgentVersion, AutomationInstallation, Run, RunStatus, RunTrigger, Schedule
 from app.services import installations_service
 from app.services.package_descriptor import normalize_stored_descriptor
+from app.services.schedule_service import next_run_at_utc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -58,7 +58,11 @@ def tick() -> int:
                     sched.id, sched.agent_id,
                 )
                 # Still advance so we don't busy-loop on a broken schedule.
-                sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
+                sched.next_run_at = next_run_at_utc(
+                    sched.cron,
+                    timezone_name=sched.timezone,
+                    base=now,
+                )
                 continue
             version = db.get(AgentVersion, agent.current_version_id)
             installation = db.execute(
@@ -84,7 +88,11 @@ def tick() -> int:
                     )
                 except installations_service.InstallationNotReadyError as exc:
                     logger.warning("schedule %s skipped for agent %s: %s", sched.id, agent.slug, exc)
-                    sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
+                    sched.next_run_at = next_run_at_utc(
+                        sched.cron,
+                        timezone_name=sched.timezone,
+                        base=now,
+                    )
                     db.commit()
                     continue
 
@@ -100,7 +108,11 @@ def tick() -> int:
             db.flush()
 
             sched.last_run_at = now
-            sched.next_run_at = croniter(sched.cron, now).get_next(datetime)
+            sched.next_run_at = next_run_at_utc(
+                sched.cron,
+                timezone_name=sched.timezone,
+                base=now,
+            )
 
             db.commit()
             queue.enqueue(run.id)
