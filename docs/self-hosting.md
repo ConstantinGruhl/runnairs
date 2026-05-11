@@ -45,7 +45,25 @@ Recovery path:
 - The bootstrap admin receives a one-time offline recovery code during initial setup. Store it outside the platform.
 - The login screen supports both password-reset codes and the bootstrap recovery code.
 - Admins can generate one-time reset or recovery codes for workspace users from `Admin -> Users` without database edits.
-- External IAM and OIDC are not part of this phase yet; built-in IAM is the supported production path on this branch.
+
+OIDC / single sign-on:
+
+1. Set `PUBLIC_BASE_URL` to the frontend's externally reachable origin (for example `https://platform.example.com`) so the control plane can build the canonical callback URI.
+2. Register an application at your IdP using `${PUBLIC_BASE_URL}/api/auth/oidc/callback` as the redirect URI.
+3. Sign in as an admin and go to `Admin -> Authentication`.
+4. Paste the discovery URL, click `Test discovery`, and confirm the issuer is reachable before saving.
+5. Fill in `client_id`, `client_secret`, `scopes`, the email and (optionally) role claim, the claim-to-role map, and the default role; enable the provider.
+6. Flip the instance to `hybrid` mode first, sign in with SSO at least once, and only then switch to `oidc` mode if you want to make SSO authoritative.
+7. The bootstrap admin always keeps a built-in password as a break-glass account. If SSO breaks, the bootstrap admin can still sign in through the standard login form even when `auth_mode == "oidc"`.
+
+Removing the provider while the instance is in `hybrid` or `oidc` mode automatically demotes the mode back to `built_in` so logins never fall off a cliff. Disabling JIT provisioning forces every OIDC user to be pre-created locally before they can sign in.
+
+Explicitly deferred from this phase:
+
+- multiple OIDC providers per instance and per-tenant providers
+- SAML support
+- OIDC RP-initiated logout and end-session redirect handling
+- provider-driven user provisioning (SCIM)
 
 Operational concerns to handle outside this demo repo:
 
