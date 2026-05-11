@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.core.db import SessionLocal
 from app.core.security import hash_password
 from app.models import Agent, AgentStatus, AgentVersion, Tenant, User, UserRole
+from app.services import bootstrap_service
 
 DEMO_TENANT_NAME = "Demo Workspace"
 DEMO_USERS: list[tuple[str, str, UserRole]] = [
@@ -120,6 +121,13 @@ def seed() -> None:
             print(f"[seed] created hello-world {HELLO_WORLD_VERSION} (image={HELLO_WORLD_IMAGE_TAG})")
         else:
             print(f"[seed] hello-world {HELLO_WORLD_VERSION} exists")
+
+        bootstrap_service.seed_bootstrap_state(
+            db,
+            tenant=tenant,
+            admin_user=admin_user,
+            notification_from_email=admin_user.email,
+        )
 
         db.commit()
 

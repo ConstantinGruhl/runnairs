@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import (
     admin,
     approvals,
     auth,
+    bootstrap,
     catalog,
     connections,
     dev,
@@ -17,6 +19,8 @@ from app.api import (
     schedules,
     secrets,
 )
+from app.core.db import SessionLocal
+from app.services import bootstrap_service
 
 app = FastAPI(title="Agent Platform Control Plane")
 
@@ -28,7 +32,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_BOOTSTRAP_OPEN_PATHS = {"/auth/login", "/auth/me", "/docs", "/openapi.json", "/redoc", "/health"}
+
+
+@app.middleware("http")
+async def enforce_bootstrap_mode(request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+    if request.method == "OPTIONS" or path in _BOOTSTRAP_OPEN_PATHS or path.startswith("/bootstrap"):
+        return await call_next(request)
+
+    with SessionLocal() as db:
+        if bootstrap_service.bootstrap_required(db):
+            return JSONResponse(
+                status_code=423,
+                content={
+                    "detail": "instance bootstrap incomplete; complete setup before using the platform",
+                    "bootstrap_required": True,
+                },
+            )
+
+    return await call_next(request)
+
 app.include_router(auth.router)
+app.include_router(bootstrap.router)
 app.include_router(admin.router)
 app.include_router(connections.router)
 app.include_router(installations.router)

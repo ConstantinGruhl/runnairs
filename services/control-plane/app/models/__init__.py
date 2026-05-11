@@ -8,6 +8,7 @@ from app.models.audit_log import AuditLog
 from app.models.feedback import Feedback, FeedbackRating
 from app.models.schedule import Schedule
 from app.models.connection import Connection, ConnectionScope, ConnectionStatus
+from app.models.instance_setting import InstanceSetting
 from app.models.installation import AutomationInstallation, InstallationStatus
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "Connection",
     "ConnectionScope",
     "ConnectionStatus",
+    "InstanceSetting",
     "AutomationInstallation",
     "InstallationStatus",
 ]

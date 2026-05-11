@@ -34,8 +34,12 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 docker compose up --build
 ```
 
-Open the frontend at <http://localhost:3000>, sign in, and use the new **Docs** tab from the
-sidebar in each role area for an in-app overview of purpose, usage, and security concepts.
+Open the frontend at <http://localhost:3000>.
+
+- On a fresh self-hosted instance, you will be routed into `/setup` and must create the first
+  admin before normal login unlocks.
+- After setup, sign in and use the **Docs** tab from each role area for an in-app overview of
+  purpose, usage, and security concepts.
 
 When the stack is up:
 
@@ -114,13 +118,14 @@ scripts/         Seed and demo scripts
 
 ## Seeding
 
-After `docker compose up`, seed the demo workspace:
+After first-run setup, you can optionally seed the local demo workspace:
 
 ```bash
 ./scripts/seed.sh
 ```
 
-This creates one tenant ("Demo Workspace") and three users:
+This marks bootstrap complete for the demo path and creates one tenant ("Demo Workspace") plus
+three users:
 
 | Email              | Password     | Role      |
 |--------------------|--------------|-----------|

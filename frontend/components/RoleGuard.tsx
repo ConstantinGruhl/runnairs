@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { clearSession, getUser, landingForRole } from "@/lib/auth";
+import { fetchBootstrapState } from "@/lib/bootstrap";
 import type { UserPublic, UserRole } from "@/lib/types";
 
 export function RoleGuard({
@@ -17,16 +18,36 @@ export function RoleGuard({
   const [user, setUser] = useState<UserPublic | null | "loading">("loading");
 
   useEffect(() => {
-    const u = getUser();
-    if (!u) {
-      router.replace("/login");
-      return;
+    let cancelled = false;
+
+    async function resolveAccess() {
+      try {
+        const bootstrapState = await fetchBootstrapState();
+        if (cancelled) return;
+        if (bootstrapState.bootstrap_required) {
+          router.replace("/setup");
+          return;
+        }
+      } catch {
+        // Fall back to the current local session behavior if the bootstrap API is unavailable.
+      }
+
+      const u = getUser();
+      if (!u) {
+        router.replace("/login");
+        return;
+      }
+      if (!allow.includes(u.role)) {
+        router.replace(landingForRole(u.role));
+        return;
+      }
+      setUser(u);
     }
-    if (!allow.includes(u.role)) {
-      router.replace(landingForRole(u.role));
-      return;
-    }
-    setUser(u);
+
+    void resolveAccess();
+    return () => {
+      cancelled = true;
+    };
   }, [router, allow]);
 
   if (user === "loading" || user === null) {

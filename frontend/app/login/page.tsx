@@ -5,19 +5,45 @@ import { useRouter } from "next/navigation";
 
 import { Button, Input, Label } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
+import { fetchBootstrapState } from "@/lib/bootstrap";
 import { getUser, landingForRole, setSession } from "@/lib/auth";
 import type { TokenResponse } from "@/lib/types";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [checkingBootstrap, setCheckingBootstrap] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const user = getUser();
-    if (user) router.replace(landingForRole(user.role));
+    let cancelled = false;
+
+    async function resolveRoute() {
+      try {
+        const state = await fetchBootstrapState();
+        if (cancelled) return;
+        if (state.bootstrap_required) {
+          router.replace("/setup");
+          return;
+        }
+      } catch {
+        // Keep the login form available if bootstrap state is temporarily unreachable.
+      }
+
+      const user = getUser();
+      if (user) {
+        router.replace(landingForRole(user.role));
+        return;
+      }
+      setCheckingBootstrap(false);
+    }
+
+    void resolveRoute();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -33,6 +59,10 @@ export default function LoginPage() {
       router.replace(landingForRole(res.user.role));
     } catch (e) {
       if (e instanceof ApiError) {
+        if (e.status === 423) {
+          router.replace("/setup");
+          return;
+        }
         setError(typeof e.detail === "string" ? e.detail : "login failed");
       } else {
         setError("network error");
@@ -40,6 +70,14 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (checkingBootstrap) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   return (

@@ -13,6 +13,30 @@ export interface TokenResponse {
   user: UserPublic;
 }
 
+export interface BootstrapState {
+  bootstrap_required: boolean;
+  completed: boolean;
+  completed_at: string | null;
+  admin_created: boolean;
+  instance_admin_user_id: string | null;
+  instance_admin_email: string | null;
+  tenant_id: string | null;
+  tenant_name: string | null;
+  notification_from_email: string | null;
+  auth_mode: string | null;
+  ready_for_completion: boolean;
+  blocking_reasons: string[];
+  checks: {
+    jwt_secret_valid: boolean;
+    platform_secrets_key_configured: boolean;
+    database_ok: boolean;
+  };
+}
+
+export interface BootstrapInitializeResponse extends TokenResponse {
+  state: BootstrapState;
+}
+
 export interface WorkspaceSecret {
   id: string;
   name: string;
