@@ -19,6 +19,12 @@ class BootstrapGuidanceItem(BaseModel):
     action: str
 
 
+class BootstrapOidcProviderState(BaseModel):
+    exists: bool
+    is_enabled: bool
+    name: str | None
+
+
 class BootstrapStatePublic(BaseModel):
     bootstrap_required: bool
     completed: bool
@@ -31,6 +37,8 @@ class BootstrapStatePublic(BaseModel):
     notification_from_email: str | None
     auth_mode: str | None
     supported_auth_modes: list[str]
+    built_in_login_enabled: bool
+    oidc_provider_state: BootstrapOidcProviderState
     ready_for_completion: bool
     blocking_reasons: list[str]
     operator_guidance: list[BootstrapGuidanceItem]

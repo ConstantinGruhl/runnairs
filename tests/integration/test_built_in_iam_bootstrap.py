@@ -13,7 +13,9 @@ def test_fresh_deployment_can_choose_built_in_iam_and_complete_setup(
     assert state_response.status_code == 200
     state_payload = state_response.json()
     assert state_payload["auth_mode"] is None
-    assert state_payload["supported_auth_modes"] == ["built_in"]
+    assert state_payload["supported_auth_modes"] == ["built_in", "hybrid", "oidc"]
+    assert state_payload["built_in_login_enabled"] is True
+    assert state_payload["oidc_provider_state"] == {"exists": False, "is_enabled": False, "name": None}
 
     initialize_response = built_in_iam_client.post("/bootstrap/initialize", json=built_in_iam_payload)
     assert initialize_response.status_code == 200

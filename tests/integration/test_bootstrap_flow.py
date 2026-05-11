@@ -100,7 +100,9 @@ def test_fresh_instance_returns_bootstrap_required_state(
     assert payload["bootstrap_required"] is True
     assert payload["completed"] is False
     assert payload["admin_created"] is False
-    assert payload["supported_auth_modes"] == ["built_in"]
+    assert payload["supported_auth_modes"] == ["built_in", "hybrid", "oidc"]
+    assert payload["built_in_login_enabled"] is True
+    assert payload["oidc_provider_state"] == {"exists": False, "is_enabled": False, "name": None}
     assert payload["checks"]["database_ok"] is True
     assert "bootstrap admin has not been created" in payload["blocking_reasons"]
     assert any(

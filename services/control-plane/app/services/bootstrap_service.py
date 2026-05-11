@@ -9,11 +9,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.services import auth_service
-from app.models import InstanceSetting, Tenant, User, UserRole
+from app.models import InstanceSetting, OidcProvider, Tenant, User, UserRole
 
 BOOTSTRAP_STATE_KEY = "bootstrap_state"
 BUILT_IN_AUTH_MODE = "built_in"
-SUPPORTED_AUTH_MODES = (BUILT_IN_AUTH_MODE,)
+HYBRID_AUTH_MODE = "hybrid"
+OIDC_AUTH_MODE = "oidc"
+SUPPORTED_AUTH_MODES = (BUILT_IN_AUTH_MODE, HYBRID_AUTH_MODE, OIDC_AUTH_MODE)
+AUTH_MODES_REQUIRING_OIDC_PROVIDER = (HYBRID_AUTH_MODE, OIDC_AUTH_MODE)
 _INSECURE_JWT_SECRETS = {"", "devsecret", "changeme-dev-only"}
 
 
@@ -41,8 +44,10 @@ def summarize_bootstrap(
     *,
     stored: Mapping[str, Any] | None,
     checks: Mapping[str, bool],
+    provider_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = dict(stored or {})
+    auth_mode = payload.get("auth_mode")
     state = {
         "bootstrap_required": not bool(payload.get("completed_at")),
         "completed": bool(payload.get("completed_at")),
@@ -53,9 +58,11 @@ def summarize_bootstrap(
         "tenant_id": payload.get("tenant_id"),
         "tenant_name": payload.get("tenant_name"),
         "notification_from_email": payload.get("notification_from_email"),
-        "auth_mode": payload.get("auth_mode"),
+        "auth_mode": auth_mode,
         "supported_auth_modes": list(SUPPORTED_AUTH_MODES),
         "checks": dict(checks),
+        "oidc_provider_state": dict(provider_state or {"exists": False, "is_enabled": False, "name": None}),
+        "built_in_login_enabled": auth_mode != OIDC_AUTH_MODE,
     }
     blocking_reasons = blocking_reasons_for_state(state)
     state["blocking_reasons"] = blocking_reasons
@@ -186,7 +193,22 @@ def bootstrap_required(db: Session) -> bool:
 
 
 def get_bootstrap_state(db: Session) -> dict[str, Any]:
-    return summarize_bootstrap(stored=_load_bootstrap_payload(db), checks=build_runtime_checks(db))
+    return summarize_bootstrap(
+        stored=_load_bootstrap_payload(db),
+        checks=build_runtime_checks(db),
+        provider_state=_load_oidc_provider_state(db),
+    )
+
+
+def _load_oidc_provider_state(db: Session) -> dict[str, Any]:
+    provider = db.execute(select(OidcProvider).order_by(OidcProvider.created_at)).scalars().first()
+    if provider is None:
+        return {"exists": False, "is_enabled": False, "name": None}
+    return {
+        "exists": True,
+        "is_enabled": bool(provider.is_enabled),
+        "name": provider.name,
+    }
 
 
 def initialize_instance(
@@ -201,7 +223,7 @@ def initialize_instance(
     state = get_bootstrap_state(db)
     if state["admin_created"]:
         raise BootstrapConflictError("bootstrap admin already exists; sign in to resume setup")
-    selected_auth_mode = validate_auth_mode(auth_mode)
+    selected_auth_mode = validate_auth_mode_for_state(auth_mode, provider_state=state.get("oidc_provider_state"))
     auth_service.validate_password_strength(admin_password)
 
     tenant = db.execute(select(Tenant).order_by(Tenant.created_at)).scalars().first()
@@ -271,7 +293,10 @@ def configure_instance(
     if notification_from_email is not None:
         payload["notification_from_email"] = notification_from_email
     if auth_mode is not None:
-        payload["auth_mode"] = validate_auth_mode(auth_mode)
+        payload["auth_mode"] = validate_auth_mode_for_state(
+            auth_mode,
+            provider_state=state.get("oidc_provider_state"),
+        )
 
     _save_bootstrap_payload(db, payload)
     return get_bootstrap_state(db)
@@ -339,6 +364,21 @@ def validate_auth_mode(auth_mode: str | None) -> str:
     if value not in SUPPORTED_AUTH_MODES:
         supported = ", ".join(SUPPORTED_AUTH_MODES)
         raise BootstrapValidationError(f"unsupported auth_mode {value!r}; supported values: {supported}")
+    return value
+
+
+def validate_auth_mode_for_state(
+    auth_mode: str | None,
+    *,
+    provider_state: Mapping[str, Any] | None,
+) -> str:
+    value = validate_auth_mode(auth_mode)
+    if value in AUTH_MODES_REQUIRING_OIDC_PROVIDER:
+        state = provider_state or {}
+        if not state.get("exists") or not state.get("is_enabled"):
+            raise BootstrapValidationError(
+                f"auth_mode {value!r} requires an enabled OIDC provider; configure one under Admin → Authentication first"
+            )
     return value
 
 
