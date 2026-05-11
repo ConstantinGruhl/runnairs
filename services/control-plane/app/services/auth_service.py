@@ -82,6 +82,19 @@ def ensure_user_can_authenticate(user: User | None) -> User:
     return user
 
 
+def is_built_in_login_allowed(bootstrap_state: dict, *, email: str) -> bool:
+    """Return True when /auth/login is allowed for this email under the current auth_mode.
+
+    Hybrid and built_in modes allow everyone. OIDC mode allows only the bootstrap admin
+    as a break-glass account so an operator cannot lock themselves out of the instance.
+    """
+    auth_mode = bootstrap_state.get("auth_mode")
+    if auth_mode != "oidc":
+        return True
+    bootstrap_admin_email = (bootstrap_state.get("instance_admin_email") or "").lower()
+    return bool(bootstrap_admin_email) and email.lower() == bootstrap_admin_email
+
+
 def ensure_session_version(user: User, token_session_version: int | None) -> None:
     if token_session_version is None or int(token_session_version) != user.session_version:
         raise AuthPermissionError("session has expired; sign in again")

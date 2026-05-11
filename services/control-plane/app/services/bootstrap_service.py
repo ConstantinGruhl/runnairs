@@ -301,13 +301,30 @@ def configure_instance(
     if notification_from_email is not None:
         payload["notification_from_email"] = notification_from_email
     if auth_mode is not None:
-        payload["auth_mode"] = validate_auth_mode_for_state(
+        validated_mode = validate_auth_mode_for_state(
             auth_mode,
             provider_state=state.get("oidc_provider_state"),
         )
+        if validated_mode == OIDC_AUTH_MODE:
+            _ensure_bootstrap_admin_has_built_in_password(db, state)
+        payload["auth_mode"] = validated_mode
 
     _save_bootstrap_payload(db, payload)
     return get_bootstrap_state(db)
+
+
+def _ensure_bootstrap_admin_has_built_in_password(db: Session, state: Mapping[str, Any]) -> None:
+    user_id = state.get("instance_admin_user_id")
+    if not user_id:
+        raise BootstrapValidationError(
+            "cannot move to oidc mode without a bootstrap admin on record"
+        )
+    admin = db.get(User, uuid.UUID(str(user_id)))
+    if admin is None or admin.password_hash is None:
+        raise BootstrapValidationError(
+            "bootstrap admin must keep a built-in password to retain break-glass access "
+            "before moving to oidc-only mode"
+        )
 
 
 def complete_bootstrap(db: Session, *, user: User) -> dict[str, Any]:

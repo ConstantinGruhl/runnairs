@@ -25,16 +25,25 @@ def login(payload: LoginRequest, response: Response, db: DbSession) -> TokenResp
         user = auth_service.ensure_user_can_authenticate(user)
     except auth_service.AuthPermissionError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
-    if not verify_password(payload.password, user.password_hash):
+    if user.password_hash is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
+
+    bootstrap_state = bootstrap_service.get_bootstrap_state(db)
     try:
         bootstrap_service.ensure_login_allowed(
-            bootstrap_service.get_bootstrap_state(db),
+            bootstrap_state,
             user_id=str(user.id),
             role=user.role.value,
         )
     except bootstrap_service.BootstrapPermissionError as exc:
         raise HTTPException(status.HTTP_423_LOCKED, str(exc)) from exc
+
+    if not auth_service.is_built_in_login_allowed(bootstrap_state, email=user.email):
+        raise HTTPException(
+            status.HTTP_423_LOCKED,
+            "built-in login is disabled while this instance is in OIDC-authoritative mode; "
+            "sign in with single sign-on",
+        )
 
     token = auth_service.create_session_token(user)
     auth_service.set_session_cookie(response, token)

@@ -62,3 +62,25 @@ def test_password_reset_code_must_match_and_not_be_expired() -> None:
     assert user.password_reset_code_hash is None
     assert user.password_reset_code_expires_at is None
     assert verify_password("Resetpass456", user.password_hash)
+
+
+def test_is_built_in_login_allowed_returns_true_for_built_in_mode() -> None:
+    state = {"auth_mode": "built_in", "instance_admin_email": "admin@example.com"}
+    assert auth_service.is_built_in_login_allowed(state, email="anyone@example.com") is True
+
+
+def test_is_built_in_login_allowed_returns_true_for_hybrid_mode() -> None:
+    state = {"auth_mode": "hybrid", "instance_admin_email": "admin@example.com"}
+    assert auth_service.is_built_in_login_allowed(state, email="anyone@example.com") is True
+
+
+def test_is_built_in_login_allowed_only_allows_bootstrap_admin_in_oidc_mode() -> None:
+    state = {"auth_mode": "oidc", "instance_admin_email": "boot@example.com"}
+    assert auth_service.is_built_in_login_allowed(state, email="boot@example.com") is True
+    assert auth_service.is_built_in_login_allowed(state, email="BOOT@example.com") is True
+    assert auth_service.is_built_in_login_allowed(state, email="someone-else@example.com") is False
+
+
+def test_is_built_in_login_allowed_returns_false_when_no_bootstrap_admin_recorded() -> None:
+    state = {"auth_mode": "oidc", "instance_admin_email": None}
+    assert auth_service.is_built_in_login_allowed(state, email="boot@example.com") is False
