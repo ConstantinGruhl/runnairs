@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Iterator
 
 import pytest
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
@@ -14,6 +15,10 @@ from app import main as main_module
 from app.core import db as db_module
 from app.core.config import settings
 from app.models import Base
+from app.services import secret_store as secret_store_module
+
+
+INTEGRATION_FERNET_KEY = Fernet.generate_key().decode("utf-8")
 
 
 def _postgres_url(database: str) -> URL:
@@ -66,11 +71,12 @@ def built_in_iam_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]
 
     monkeypatch.setattr(settings, "app_env", "production")
     monkeypatch.setattr(settings, "jwt_secret", "x" * 32)
-    monkeypatch.setattr(settings, "platform_secrets_key", "integration-secret-key")
+    monkeypatch.setattr(settings, "platform_secrets_key", INTEGRATION_FERNET_KEY)
     monkeypatch.setattr(settings, "database_url", str(_postgres_url(db_name)))
     monkeypatch.setattr(db_module, "engine", engine)
     monkeypatch.setattr(db_module, "SessionLocal", testing_session_local)
     monkeypatch.setattr(main_module, "SessionLocal", testing_session_local)
+    monkeypatch.setattr(secret_store_module, "_singleton", None)
 
     try:
         with TestClient(main_module.app, base_url="https://testserver") as client:

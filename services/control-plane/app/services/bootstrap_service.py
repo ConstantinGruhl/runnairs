@@ -275,9 +275,17 @@ def configure_instance(
     auth_mode: str | None = None,
 ) -> dict[str, Any]:
     state = get_bootstrap_state(db)
-    if state["completed"]:
-        raise BootstrapConflictError("bootstrap is already complete")
-    ensure_bootstrap_admin(state, user_id=str(user.id), role=user.role.value)
+    if user.role != UserRole.admin:
+        raise BootstrapPermissionError("only an admin may change instance configuration")
+
+    post_setup = bool(state["completed"])
+    if post_setup:
+        if tenant_name is not None or notification_from_email is not None:
+            raise BootstrapConflictError(
+                "instance setup is already complete; only auth_mode may be rotated through this endpoint"
+            )
+    else:
+        ensure_bootstrap_admin(state, user_id=str(user.id), role=user.role.value)
 
     payload = dict(_load_bootstrap_payload(db) or {})
     if not payload.get("tenant_id"):
@@ -312,6 +320,14 @@ def complete_bootstrap(db: Session, *, user: User) -> dict[str, Any]:
     payload = dict(_load_bootstrap_payload(db) or {})
     payload["completed_at"] = datetime.now(timezone.utc).isoformat()
     _save_bootstrap_payload(db, payload)
+    return get_bootstrap_state(db)
+
+
+def demote_auth_mode_to_built_in(db: Session) -> dict[str, Any]:
+    payload = dict(_load_bootstrap_payload(db) or {})
+    if payload.get("auth_mode") in AUTH_MODES_REQUIRING_OIDC_PROVIDER:
+        payload["auth_mode"] = BUILT_IN_AUTH_MODE
+        _save_bootstrap_payload(db, payload)
     return get_bootstrap_state(db)
 
 

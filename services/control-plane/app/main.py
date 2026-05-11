@@ -15,6 +15,7 @@ from app.api import (
     feedback,
     installations,
     me,
+    oidc,
     runs,
     schedules,
     secrets,
@@ -56,6 +57,7 @@ async def enforce_bootstrap_mode(request, call_next):
 app.include_router(auth.router)
 app.include_router(bootstrap.router)
 app.include_router(admin.router)
+app.include_router(oidc.router)
 app.include_router(connections.router)
 app.include_router(installations.router)
 app.include_router(secrets.router)
