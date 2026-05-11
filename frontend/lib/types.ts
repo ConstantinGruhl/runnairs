@@ -22,6 +22,12 @@ export interface BootstrapGuidanceItem {
   action: string;
 }
 
+export interface BootstrapOidcProviderState {
+  exists: boolean;
+  is_enabled: boolean;
+  name: string | null;
+}
+
 export interface BootstrapState {
   bootstrap_required: boolean;
   completed: boolean;
@@ -34,6 +40,8 @@ export interface BootstrapState {
   notification_from_email: string | null;
   auth_mode: string | null;
   supported_auth_modes: string[];
+  built_in_login_enabled: boolean;
+  oidc_provider_state: BootstrapOidcProviderState;
   ready_for_completion: boolean;
   blocking_reasons: string[];
   operator_guidance: BootstrapGuidanceItem[];
@@ -42,6 +50,44 @@ export interface BootstrapState {
     platform_secrets_key_configured: boolean;
     database_ok: boolean;
   };
+}
+
+export interface OidcProviderPublic {
+  id: string;
+  name: string;
+  issuer: string;
+  discovery_url: string;
+  client_id: string;
+  has_client_secret: boolean;
+  scopes: string;
+  email_claim: string;
+  role_claim: string | null;
+  claim_role_map: Record<string, string>;
+  default_role: string;
+  allow_jit_provisioning: boolean;
+  manage_roles: boolean;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OidcDiscoveryProbeResponse {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  jwks_uri: string;
+  userinfo_endpoint: string | null;
+  end_session_endpoint: string | null;
+  scopes_supported: string[];
+  response_types_supported: string[];
+}
+
+export interface OidcStatusResponse {
+  enabled: boolean;
+  provider_name: string | null;
+  login_url: string | null;
+  auth_mode: string | null;
+  built_in_login_enabled: boolean;
 }
 
 export interface BootstrapInitializeResponse extends TokenResponse {

@@ -317,7 +317,9 @@ export function BootstrapSetupWizard() {
                 </div>
               </label>
               <p className="mt-3 text-xs text-muted-foreground">
-                External IAM and OIDC configuration land in the next production phase. This phase explicitly records built-in IAM as the active mode.
+                After setup completes, an admin can configure an OpenID Connect provider under Admin →
+                Authentication and switch to hybrid or OIDC-only mode without redeploying. The bootstrap
+                admin always retains a built-in password as a break-glass account.
               </p>
             </div>
 

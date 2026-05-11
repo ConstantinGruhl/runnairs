@@ -20,6 +20,7 @@ const OPERATIONS_POINTS = [
   "Use the Catalog area to understand what an automation needs before launching it.",
   "Use Admin secrets and connections to satisfy workspace-level requirements like LLM credentials.",
   "Use Admin users to manage built-in IAM accounts, roles, status, and one-time reset or recovery codes.",
+  "Use Admin authentication to register an OIDC provider, map claims to roles, and switch the instance into hybrid or OIDC-only mode.",
   "Use Developer pages to inspect versions, schedules, installation readiness, and user feedback.",
   "For production, run the compose stack with the production overlay and set strong secrets before first launch.",
 ];
@@ -114,11 +115,24 @@ export function PlatformDocs({
 
       <Card className="space-y-3">
         <div>
+          <h2 className="text-base font-medium">Authentication Modes</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Built-in IAM is the default. After setup, an admin can register an OpenID Connect provider under
+            Admin → Authentication and choose <span className="font-mono">hybrid</span> (both built-in and SSO)
+            or <span className="font-mono">oidc</span> (SSO-only, with the bootstrap admin retaining built-in
+            credentials as a break-glass account). Removing the provider while the instance is in hybrid or
+            OIDC mode demotes the mode back to built-in.
+          </p>
+        </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
           <h2 className="text-base font-medium">Current Production Focus</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            The current production baseline includes secure first-run setup and built-in IAM foundations.
-            The next milestones are OIDC, stronger CI and security testing, Git-backed skill distribution,
-            and broader operational hardening for self-hosting.
+            The current production baseline includes secure first-run setup, built-in IAM, and an OpenID
+            Connect integration with claim-to-role mapping. The next milestones are Git-backed skill
+            distribution, stronger CI and security testing, and broader operational hardening for self-hosting.
           </p>
         </div>
       </Card>

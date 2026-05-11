@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button, Input, Label } from "@/components/ui";
+import { SsoLoginButton } from "@/components/SsoLoginButton";
 import { ApiError, apiFetch } from "@/lib/api";
 import { fetchBootstrapState } from "@/lib/bootstrap";
 import { getUser, landingForRole, refreshCurrentUser, setSession } from "@/lib/auth";
@@ -11,8 +12,33 @@ import type { TokenResponse } from "@/lib/types";
 
 type LoginMode = "login" | "password_reset" | "recovery";
 
+const OIDC_ERROR_COPY: Record<string, string> = {
+  invalid_state: "Single sign-on flow expired or was tampered with. Please try again.",
+  expired_flow: "Single sign-on flow expired. Please try again.",
+  email_mismatch: "The email returned by your provider does not match the linked account.",
+  provisioning_disabled: "Your account does not exist yet and just-in-time provisioning is disabled.",
+  account_disabled: "Your account is disabled. Contact an administrator.",
+  provider_disabled: "Single sign-on is currently disabled on this instance.",
+  idp_error: "Single sign-on provider returned an error. Please try again.",
+  unknown: "Single sign-on failed unexpectedly. Please try again.",
+};
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    }>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const oidcErrorCode = searchParams.get("oidc_error");
   const [checkingBootstrap, setCheckingBootstrap] = useState(true);
   const [mode, setMode] = useState<LoginMode>("login");
   const [email, setEmail] = useState("");
@@ -20,7 +46,9 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState("");
   const [resetCode, setResetCode] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oidcErrorCode ? OIDC_ERROR_COPY[oidcErrorCode] ?? OIDC_ERROR_COPY.unknown : null
+  );
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -135,6 +163,8 @@ export default function LoginPage() {
                 : "Recover the bootstrap admin with the offline recovery code"}
           </p>
         </div>
+
+        <SsoLoginButton />
 
         <div className="flex flex-wrap justify-center gap-2">
           <Button type="button" variant={mode === "login" ? "primary" : "secondary"} onClick={() => setMode("login")}>
