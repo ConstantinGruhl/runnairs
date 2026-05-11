@@ -17,7 +17,9 @@ def test_summarize_bootstrap_reports_fresh_instance() -> None:
 
     assert state["bootstrap_required"] is True
     assert state["admin_created"] is False
+    assert state["supported_auth_modes"] == ["built_in"]
     assert "bootstrap admin has not been created" in state["blocking_reasons"]
+    assert "authentication mode has not been selected" in state["blocking_reasons"]
     assert state["ready_for_completion"] is False
 
 
@@ -42,6 +44,7 @@ def test_summarize_bootstrap_reports_resumable_partial_state() -> None:
     assert state["bootstrap_required"] is True
     assert state["admin_created"] is True
     assert state["instance_admin_email"] == "admin@example.com"
+    assert state["auth_mode"] == "built_in"
     assert state["blocking_reasons"] == ["PLATFORM_SECRETS_KEY is not configured"]
 
 
@@ -65,6 +68,7 @@ def test_validate_completion_state_accepts_ready_state() -> None:
 
     bootstrap_service.validate_completion_state(state)
     assert state["ready_for_completion"] is True
+    assert state["operator_guidance"] == []
 
 
 def test_validate_completion_state_rejects_missing_requirements() -> None:
@@ -86,6 +90,7 @@ def test_validate_completion_state_rejects_missing_requirements() -> None:
     with pytest.raises(bootstrap_service.BootstrapValidationError) as exc:
         bootstrap_service.validate_completion_state(state)
 
+    assert "authentication mode has not been selected" in str(exc.value)
     assert "notification from email is missing" in str(exc.value)
     assert "database connectivity check failed" in str(exc.value)
 
@@ -98,6 +103,7 @@ def test_only_bootstrap_admin_may_continue_setup() -> None:
             "admin_user_id": "user-1",
             "admin_email": "admin@example.com",
             "notification_from_email": "ops@example.com",
+            "auth_mode": "built_in",
             "completed_at": None,
         },
         checks={
@@ -123,6 +129,7 @@ def test_only_bootstrap_admin_may_log_in_during_bootstrap() -> None:
             "admin_user_id": "user-1",
             "admin_email": "admin@example.com",
             "notification_from_email": "ops@example.com",
+            "auth_mode": "built_in",
             "completed_at": None,
         },
         checks={
@@ -136,3 +143,37 @@ def test_only_bootstrap_admin_may_log_in_during_bootstrap() -> None:
 
     with pytest.raises(bootstrap_service.BootstrapPermissionError):
         bootstrap_service.ensure_login_allowed(state, user_id="user-2", role="developer")
+
+
+def test_operator_guidance_includes_runtime_fix_steps() -> None:
+    state = bootstrap_service.summarize_bootstrap(
+        stored={
+            "tenant_id": "tenant-1",
+            "tenant_name": "Demo Workspace",
+            "admin_user_id": "user-1",
+            "admin_email": "admin@example.com",
+            "notification_from_email": "ops@example.com",
+            "auth_mode": "built_in",
+            "completed_at": None,
+        },
+        checks={
+            "jwt_secret_valid": True,
+            "platform_secrets_key_configured": False,
+            "database_ok": False,
+        },
+    )
+
+    assert {item["key"] for item in state["operator_guidance"]} == {
+        "platform_secrets_key_configured",
+        "database_ok",
+    }
+    assert any("PLATFORM_SECRETS_KEY" in item["action"] for item in state["operator_guidance"])
+
+
+def test_validate_auth_mode_accepts_built_in() -> None:
+    assert bootstrap_service.validate_auth_mode("built_in") == "built_in"
+
+
+def test_validate_auth_mode_rejects_unsupported_values() -> None:
+    with pytest.raises(bootstrap_service.BootstrapValidationError, match="unsupported auth_mode"):
+        bootstrap_service.validate_auth_mode("oidc")

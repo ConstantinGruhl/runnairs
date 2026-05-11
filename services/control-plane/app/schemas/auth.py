@@ -12,6 +12,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class PasswordResetCompleteRequest(BaseModel):
+    email: str
+    reset_code: str
+    new_password: str
+
+
+class RecoveryCompleteRequest(BaseModel):
+    email: str
+    recovery_code: str
+    new_password: str
+
+
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

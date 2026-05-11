@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SESSION_COOKIE_NAME = "platform_session"
 
 
 def hash_password(plain: str) -> str:

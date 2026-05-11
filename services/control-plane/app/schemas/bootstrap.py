@@ -11,6 +11,14 @@ class BootstrapChecks(BaseModel):
     database_ok: bool
 
 
+class BootstrapGuidanceItem(BaseModel):
+    key: str
+    category: str
+    title: str
+    body: str
+    action: str
+
+
 class BootstrapStatePublic(BaseModel):
     bootstrap_required: bool
     completed: bool
@@ -22,8 +30,10 @@ class BootstrapStatePublic(BaseModel):
     tenant_name: str | None
     notification_from_email: str | None
     auth_mode: str | None
+    supported_auth_modes: list[str]
     ready_for_completion: bool
     blocking_reasons: list[str]
+    operator_guidance: list[BootstrapGuidanceItem]
     checks: BootstrapChecks
 
 
@@ -32,15 +42,18 @@ class BootstrapInitializeRequest(BaseModel):
     admin_email: str = Field(min_length=3, max_length=320)
     admin_password: str = Field(min_length=8, max_length=128)
     notification_from_email: str = Field(min_length=3, max_length=320)
+    auth_mode: str = Field(min_length=1, max_length=64)
 
 
 class BootstrapConfigureRequest(BaseModel):
     tenant_name: str | None = Field(default=None, min_length=1, max_length=255)
     notification_from_email: str | None = Field(default=None, min_length=3, max_length=320)
+    auth_mode: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class BootstrapInitializeResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    bootstrap_recovery_code: str | None = None
     user: UserPublic
     state: BootstrapStatePublic

@@ -8,23 +8,124 @@ from typing import Annotated
 import httpx
 import redis
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.core.config import settings
 from app.core.dependencies import DbSession, require_role
-from app.models import Agent, AgentStatus, AgentVersion, User
+from app.models import Agent, AgentStatus, AgentVersion, User, UserRole, UserStatus
+from app.schemas.admin_users import (
+    AdminCreateUserRequest,
+    AdminUpdateUserRequest,
+    AdminUserSummary,
+    OneTimeCodeResponse,
+)
 from app.services.package_descriptor import normalize_stored_descriptor
 from app.schemas.auth import UserPublic
+from app.services import user_management_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 AdminOnly = Annotated[User, Depends(require_role("admin"))]
 
 
-@router.get("/users", response_model=list[UserPublic])
-def list_users(actor: AdminOnly, db: DbSession) -> list[UserPublic]:
+@router.get("/users", response_model=list[AdminUserSummary])
+def list_users(actor: AdminOnly, db: DbSession) -> list[AdminUserSummary]:
     rows = db.execute(select(User).where(User.tenant_id == actor.tenant_id)).scalars().all()
-    return [UserPublic.model_validate(u) for u in rows]
+    return [AdminUserSummary.model_validate(u) for u in rows]
+
+
+@router.post("/users", response_model=AdminUserSummary, status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: AdminCreateUserRequest,
+    actor: AdminOnly,
+    db: DbSession,
+) -> AdminUserSummary:
+    existing = db.execute(
+        select(User).where(User.tenant_id == actor.tenant_id, User.email == payload.email)
+    ).scalar_one_or_none()
+    try:
+        user = user_management_service.create_user(
+            actor=actor,
+            email=payload.email,
+            password=payload.password,
+            role=payload.role,
+            existing_user=existing,
+        )
+    except user_management_service.UserManagementConflictError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except user_management_service.UserManagementValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return AdminUserSummary.model_validate(user)
+
+
+@router.patch("/users/{user_id}", response_model=AdminUserSummary)
+def update_user(
+    user_id: uuid.UUID,
+    payload: AdminUpdateUserRequest,
+    actor: AdminOnly,
+    db: DbSession,
+) -> AdminUserSummary:
+    target = db.get(User, user_id)
+    if target is None or target.tenant_id != actor.tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+
+    active_admin_count = db.execute(
+        select(func.count())
+        .select_from(User)
+        .where(
+            User.tenant_id == actor.tenant_id,
+            User.role == UserRole.admin,
+            User.status == UserStatus.active,
+        )
+    ).scalar_one()
+    try:
+        user_management_service.update_user(
+            actor=actor,
+            target=target,
+            role=payload.role,
+            status=payload.status,
+            active_admin_count=int(active_admin_count),
+        )
+    except user_management_service.UserManagementValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+    db.commit()
+    db.refresh(target)
+    return AdminUserSummary.model_validate(target)
+
+
+@router.post("/users/{user_id}/password-reset", response_model=OneTimeCodeResponse)
+def generate_password_reset(
+    user_id: uuid.UUID,
+    actor: AdminOnly,
+    db: DbSession,
+) -> OneTimeCodeResponse:
+    target = db.get(User, user_id)
+    if target is None or target.tenant_id != actor.tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+
+    code, expires_at = user_management_service.issue_password_reset(target=target)
+    db.commit()
+    return OneTimeCodeResponse(code=code, expires_at=expires_at, kind="password_reset")
+
+
+@router.post("/users/{user_id}/recovery-code", response_model=OneTimeCodeResponse)
+def generate_recovery_code(
+    user_id: uuid.UUID,
+    actor: AdminOnly,
+    db: DbSession,
+) -> OneTimeCodeResponse:
+    target = db.get(User, user_id)
+    if target is None or target.tenant_id != actor.tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+
+    code, expires_at = user_management_service.issue_recovery_code(target=target)
+    db.commit()
+    return OneTimeCodeResponse(code=code, expires_at=expires_at, kind="recovery")
 
 
 @router.get("/whoami")
