@@ -42,6 +42,12 @@
 - Treat `JWT_SECRET` and `PLATFORM_SECRETS_KEY` as operator-managed environment configuration. The setup wizard validates them; it does not write environment files.
 - Treat `notification_from_email` as the minimum required mail/notification default stored in the database for this phase.
 
+## 2026-05-11 Implementation Note
+
+- Current shipped coverage is still unit-test heavy; fresh-instance bootstrap, login-resume, and route-lockout behavior have not yet been proven with app-level integration tests.
+- Configure mode currently hard-codes `auth_mode` to `built_in`; the first-run wizard does not yet expose IAM mode selection or provider setup.
+- The setup UI shows runtime check status and blocking reasons, but there is not yet an automated browser or API first-run certification flow for a brand-new deployment.
+
 ## Task 1: Add Instance-Level Bootstrap State And Policy Helpers
 
 **Files:**
