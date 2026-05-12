@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,6 +23,7 @@ class Settings(BaseSettings):
     platform_secrets_key: str = Field(default="", alias="PLATFORM_SECRETS_KEY")
     tool_gateway_url: str = Field(default="http://tool-gateway:8001", alias="TOOL_GATEWAY_URL")
     public_base_url: str = Field(default="http://localhost:3000", alias="PUBLIC_BASE_URL")
+    skill_registry_root: Path = Field(default=Path("./data/skill-registry"), alias="SKILL_REGISTRY_ROOT")
 
     @model_validator(mode="after")
     def validate_runtime_security(self) -> "Settings":

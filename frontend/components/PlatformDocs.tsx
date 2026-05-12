@@ -21,6 +21,8 @@ const OPERATIONS_POINTS = [
   "Use Admin secrets and connections to satisfy workspace-level requirements like LLM credentials.",
   "Use Admin users to manage built-in IAM accounts, roles, status, and one-time reset or recovery codes.",
   "Use Admin authentication to register an OIDC provider, map claims to roles, and switch the instance into hybrid or OIDC-only mode.",
+  "Use Admin skills to register or refresh a Git-backed automation source and inspect the synced file tree and AI instructions.",
+  "Use App skills to browse the synced source tree and copy the resolved instructions before an admin promotes the draft version for execution.",
   "Use Developer pages to inspect versions, schedules, installation readiness, and user feedback.",
   "For production, run the compose stack with the production overlay and set strong secrets before first launch.",
 ];
@@ -31,6 +33,7 @@ const SECURITY_POINTS = [
   "Approval-gated actions such as email sends remain blocked until an authorized admin approves them.",
   "Secrets are stored encrypted at rest and should be backed by strong environment secrets in production.",
   "Browser logins now rely on HttpOnly session cookies, and the bootstrap admin should store the offline recovery code outside the platform.",
+  "Git-backed skill sync hides `.git` internals, enforces checkout size limits, and only surfaces a sanitized tree snapshot to the UI.",
 ];
 
 export function PlatformDocs({
@@ -130,9 +133,10 @@ export function PlatformDocs({
         <div>
           <h2 className="text-base font-medium">Current Production Focus</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            The current production baseline includes secure first-run setup, built-in IAM, and an OpenID
-            Connect integration with claim-to-role mapping. The next milestones are Git-backed skill
-            distribution, stronger CI and security testing, and broader operational hardening for self-hosting.
+            The current production baseline now includes secure first-run setup, built-in IAM, an OpenID
+            Connect integration with claim-to-role mapping, and a Git-backed skill registry for registering,
+            syncing, and inspecting automation sources. The next milestones are stronger CI and security
+            testing, broader observability, backup and restore drills, and a fresh-deployment certification pass.
           </p>
         </div>
       </Card>

@@ -71,7 +71,7 @@ Important production notes:
 - The frontend now talks to the backend through a same-origin proxy route, so browsers no longer
   need to resolve Docker-internal hostnames such as `control-plane`.
 - See [docs/self-hosting.md](docs/self-hosting.md) for the current operator guidance.
-- See [docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md](docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md) for the broader roadmap covering first-run setup, IAM, skill distribution, and security hardening.
+- See [docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md](docs/superpowers/plans/2026-05-11-production-readiness-master-plan.md) for the broader roadmap covering release gates, observability, and the remaining security hardening work.
 
 ## Repo layout
 
@@ -205,9 +205,20 @@ Use `agent.yaml` only when maintaining an older compatibility package.
 `deploy` zips the directory, uploads to `POST /dev/agents/deploy`, and the
 control plane validates the manifest, builds an image tagged
 `agent-<uuid>:v<n>` from `platform/agent-runtime` + the agent code, and
-creates a draft `AgentVersion` row. Admins approve it via
-`POST /admin/agents/<slug>/approve` (UI lands in Phase 6) before end
-users can run it.
+creates a draft `AgentVersion` row. Admins approve it from `Admin -> Agents`
+or via `POST /admin/agents/<slug>/approve` before end users can run it.
+
+## Git-backed skill registry
+
+Admins can now register a Git-backed automation source from the product:
+
+- `Admin -> Skills` stores the repository URL or local path plus a Git ref.
+- The control plane clones the repo with the local `git` CLI, checks out the requested ref, validates `automation.yaml` or `agent.yaml`, and snapshots a sanitized file tree.
+- Instruction text is resolved from `AI_INSTRUCTIONS.md`, then `SKILL.md`, then `README.md`, then a manifest-derived fallback.
+- The validated checkout is copied into `SKILL_REGISTRY_ROOT` and deployed through the same `Agent` / `AgentVersion` pipeline used by `platform-cli deploy`.
+- Refreshing a source creates a new draft `AgentVersion`; admins still approve that version before it becomes runnable from the catalog.
+
+Users can inspect synced sources under `App -> Skills`, including the resolved AI instructions and the browsable file tree.
 
 ## Approvals + email
 
@@ -281,5 +292,6 @@ On Windows PowerShell, set `$env:PYTHONPATH="services/control-plane;packages/pla
 
 - Anthropic + other LLM providers can be plugged into the gateway
   alongside OpenAI; only OpenAI is wired today.
-- Local-storage browser tokens remain in use today; a production auth/session redesign is still planned.
-- The first-run configure mode, pluggable IAM, Git-backed skill distribution, and full production security program are planned next rather than finished today.
+- Browser sessions now use HttpOnly cookies, while CLI and API clients still rely on bearer tokens.
+- Git-backed skill sources now support admin-managed registration, refresh, and inspection, but richer Git auth modes, background sync jobs, and automatic approval workflows are still deferred.
+- The remaining large production-readiness gaps are CI and security gates, broader observability, backup and restore drills, and a fresh-deployment certification pass.

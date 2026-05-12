@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import logging
+import shutil
 import tempfile
 import uuid
 import zipfile
@@ -53,46 +54,69 @@ def deploy(
     with tempfile.TemporaryDirectory(prefix="agent-deploy-") as tmpdir:
         tmp = Path(tmpdir)
         _safe_extract(archive_bytes, tmp)
-
-        if not (tmp / "main.py").exists():
-            raise DeployError("archive is missing main.py at the top level")
-
-        try:
-            descriptor = load_package_descriptor(tmp)
-        except ValueError as e:
-            raise DeployError(str(e)) from e
-
-        manifest = descriptor.data
-        slug = manifest["name"]
-
-        agent = _upsert_agent(db, tenant_id=tenant_id, slug=slug, manifest=manifest, created_by=created_by)
-        version = _next_version(db, agent.id)
-        image_tag = f"agent-{agent.id}:{version}"
-
-        _write_dockerfile(tmp)
-        _build_image(tmp, image_tag)
-
-        try:
-            inspection = inspect_image_package(image_tag=image_tag, entrypoint=manifest["entrypoint"])
-            validate_descriptor_against_inspection(manifest, inspection)
-        except (InspectionError, ValueError) as e:
-            _remove_image_if_present(image_tag)
-            raise DeployError(str(e)) from e
-
-        version_row = AgentVersion(
-            agent_id=agent.id,
-            version=version,
-            manifest_json=manifest,
-            descriptor_format=descriptor.format,
-            compatibility_version=_compatibility_version(manifest),
-            inspection_json=inspection,
-            image_tag=image_tag,
+        result = deploy_from_directory(
+            db,
+            tenant_id=tenant_id,
             created_by=created_by,
+            source_root=tmp,
+            commit=False,
         )
-        db.add(version_row)
-        db.flush()
-
     db.commit()
+    return result
+
+
+def deploy_from_directory(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    created_by: uuid.UUID,
+    source_root: Path,
+    code_archive_url: str | None = None,
+    commit: bool = True,
+) -> DeployedAgent:
+    if not (source_root / "main.py").exists():
+        raise DeployError("archive is missing main.py at the top level")
+
+    try:
+        descriptor = load_package_descriptor(source_root)
+    except ValueError as e:
+        raise DeployError(str(e)) from e
+
+    manifest = descriptor.data
+    slug = manifest["name"]
+
+    agent = _upsert_agent(db, tenant_id=tenant_id, slug=slug, manifest=manifest, created_by=created_by)
+    version = _next_version(db, agent.id)
+    image_tag = f"agent-{agent.id}:{version}"
+
+    with tempfile.TemporaryDirectory(prefix="agent-build-context-") as build_tmpdir:
+        build_context = Path(build_tmpdir) / "context"
+        shutil.copytree(source_root, build_context)
+        _write_dockerfile(build_context)
+        _build_image(build_context, image_tag)
+
+    try:
+        inspection = inspect_image_package(image_tag=image_tag, entrypoint=manifest["entrypoint"])
+        validate_descriptor_against_inspection(manifest, inspection)
+    except (InspectionError, ValueError) as e:
+        _remove_image_if_present(image_tag)
+        raise DeployError(str(e)) from e
+
+    version_row = AgentVersion(
+        agent_id=agent.id,
+        version=version,
+        manifest_json=manifest,
+        descriptor_format=descriptor.format,
+        compatibility_version=_compatibility_version(manifest),
+        inspection_json=inspection,
+        image_tag=image_tag,
+        code_archive_url=code_archive_url,
+        created_by=created_by,
+    )
+    db.add(version_row)
+    db.flush()
+    if commit:
+        db.commit()
     return DeployedAgent(
         agent_id=agent.id,
         slug=agent.slug,

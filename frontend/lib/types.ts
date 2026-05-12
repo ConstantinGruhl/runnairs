@@ -90,6 +90,30 @@ export interface OidcStatusResponse {
   built_in_login_enabled: boolean;
 }
 
+export interface SkillTreeEntryPublic {
+  path: string;
+  kind: string;
+  size_bytes: number | null;
+}
+
+export interface SkillSourceSummary {
+  slug: string;
+  display_name: string;
+  repo_url: string;
+  git_ref: string;
+  resolved_commit_sha: string | null;
+  status: string;
+  descriptor_format: string | null;
+  last_synced_at: string | null;
+  last_error: string | null;
+}
+
+export interface SkillSourceDetail extends SkillSourceSummary {
+  instructions_markdown: string | null;
+  manifest: Record<string, unknown>;
+  tree: SkillTreeEntryPublic[];
+}
+
 export interface BootstrapInitializeResponse extends TokenResponse {
   bootstrap_recovery_code: string | null;
   state: BootstrapState;

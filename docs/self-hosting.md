@@ -58,12 +58,32 @@ OIDC / single sign-on:
 
 Removing the provider while the instance is in `hybrid` or `oidc` mode automatically demotes the mode back to `built_in` so logins never fall off a cliff. Disabling JIT provisioning forces every OIDC user to be pre-created locally before they can sign in.
 
+Git-backed skill registry:
+
+1. Set `SKILL_REGISTRY_ROOT` if you do not want the control plane to store synced checkouts under the default local data directory.
+2. Ensure the control-plane container can run the local `git` CLI against the repositories you want to register.
+3. Open `Admin -> Skills`, register a repository URL or local repository path plus a Git ref, and wait for the sync to complete.
+4. The platform clones the repo, checks out the pinned ref, validates `automation.yaml` or `agent.yaml`, resolves instructions from `AI_INSTRUCTIONS.md`, `SKILL.md`, or `README.md`, and stores a sanitized file-tree snapshot for browsing.
+5. Each successful sync deploys a new draft `AgentVersion` through the existing agent pipeline. Review and approve the pending version before expecting end users to run it from the catalog.
+6. End users can inspect synced sources from `App -> Skills`, including the resolved instructions and the sanitized file tree, even before the underlying draft version is approved for execution.
+
+Current trust boundary and limits:
+
+- supported Git inputs today are standard local paths and URLs the local `git` CLI can clone without interactive auth
+- `.git` contents are not exposed through the file browser
+- sync rejects oversized trees and oversized individual files before deployment
+- deployment still builds a runtime image from the validated checkout, so image-build permissions and capacity remain an operator concern
+- automatic approval, scheduled refresh, richer Git auth flows, and provider-side provenance verification are still deferred
+
 Explicitly deferred from this phase:
 
 - multiple OIDC providers per instance and per-tenant providers
 - SAML support
 - OIDC RP-initiated logout and end-session redirect handling
 - provider-driven user provisioning (SCIM)
+- background Git refresh jobs and webhooks
+- non-interactive credential management for private Git remotes beyond what the local `git` CLI already supports
+- automatic promotion of refreshed skill sources into approved catalog versions
 
 Operational concerns to handle outside this demo repo:
 

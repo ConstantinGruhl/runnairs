@@ -11,6 +11,7 @@ from app.models.connection import Connection, ConnectionScope, ConnectionStatus
 from app.models.instance_setting import InstanceSetting
 from app.models.installation import AutomationInstallation, InstallationStatus
 from app.models.oidc_provider import OidcProvider
+from app.models.skill_source import SkillSource, SkillSourceStatus
 from app.models.user_identity import UserIdentity
 from app.models.oidc_auth_request import OidcAuthRequest
 
@@ -42,6 +43,8 @@ __all__ = [
     "AutomationInstallation",
     "InstallationStatus",
     "OidcProvider",
+    "SkillSource",
+    "SkillSourceStatus",
     "UserIdentity",
     "OidcAuthRequest",
 ]

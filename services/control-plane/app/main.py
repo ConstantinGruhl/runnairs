@@ -19,6 +19,7 @@ from app.api import (
     runs,
     schedules,
     secrets,
+    skill_registry,
 )
 from app.core.db import SessionLocal
 from app.services import bootstrap_service
@@ -59,6 +60,8 @@ app.include_router(bootstrap.router)
 app.include_router(admin.router)
 app.include_router(oidc.router)
 app.include_router(oidc.auth_router)
+app.include_router(skill_registry.router)
+app.include_router(skill_registry.app_router)
 app.include_router(connections.router)
 app.include_router(installations.router)
 app.include_router(secrets.router)
